@@ -1,0 +1,6 @@
+CREATE TABLE tabela_frete (
+    id BIGSERIAL PRIMARY KEY,
+    descricao VARCHAR(255) NOT NULL,
+    valor DECIMAL(19, 2) NOT NULL,
+    ativo BOOLEAN NOT NULL DEFAULT TRUE
+);

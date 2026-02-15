@@ -1,0 +1,5 @@
+CREATE TABLE setor (
+    id BIGSERIAL PRIMARY KEY,
+    descricao VARCHAR(255) NOT NULL,
+    ativo BOOLEAN NOT NULL DEFAULT TRUE
+);
