@@ -41,6 +41,34 @@ public class Usuario {
     @Column(nullable = false)
     private Role role;
 
+    @Column(nullable = false, length = 100)
+    private String bairro = "A designar";
+
+    private String observacao;
+
+    private String padre;
+
+    private String secretario;
+
+    private String tesoureiro;
+
+    @Enumerated(EnumType.STRING)
+    @Column(name = "forma_pagamento")
+    private FormaPagamento formaPagamento;
+
+    private java.math.BigDecimal desconto;
+
+    @Column(name = "modalidade_entrega")
+    private String modalidadeEntrega;
+
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "setor_id")
+    private Setor setor;
+
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "tabela_frete_id")
+    private TabelaFrete tabelaFrete;
+
     @Column(nullable = false, length = 32)
     private String senha;
 

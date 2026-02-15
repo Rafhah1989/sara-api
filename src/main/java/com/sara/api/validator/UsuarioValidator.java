@@ -7,14 +7,24 @@ import org.springframework.stereotype.Component;
 @Component
 public class UsuarioValidator {
 
-    public void validar(UsuarioRequestDTO request) {
+    public void validar(UsuarioRequestDTO request, boolean isCriacao) {
         validarNome(request.getNome());
-        validarSenha(request.getSenha());
+        validarSenha(request.getSenha(), isCriacao);
         validarCep(request.getCep());
         validarCpfCnpj(request.getCpfCnpj());
         validarTelefone(request.getTelefone());
         validarCidade(request.getCidade());
         validarUf(request.getUf());
+        validarBairro(request.getBairro());
+    }
+
+    private void validarBairro(String bairro) {
+        if (bairro == null || bairro.trim().isEmpty()) {
+            throw new ValidationException("O campo bairro é obrigatório");
+        }
+        if (bairro.length() > 100) {
+            throw new ValidationException("O campo bairro deve ter no máximo 100 caracteres");
+        }
     }
 
     private void validarNome(String nome) {
@@ -23,7 +33,10 @@ public class UsuarioValidator {
         }
     }
 
-    private void validarSenha(String senha) {
+    private void validarSenha(String senha, boolean isCriacao) {
+        if (!isCriacao && (senha == null || senha.isEmpty())) {
+            return;
+        }
         if (senha == null || !senha.matches("\\d{6}")) {
             throw new ValidationException("A senha deve conter seis números");
         }

@@ -4,6 +4,8 @@ import com.sara.api.dto.UsuarioRequestDTO;
 import com.sara.api.dto.UsuarioResponseDTO;
 import com.sara.api.model.Usuario;
 import com.sara.api.repository.UsuarioRepository;
+import com.sara.api.repository.SetorRepository;
+import com.sara.api.repository.TabelaFreteRepository;
 import com.sara.api.validator.UsuarioValidator;
 import org.springframework.beans.BeanUtils;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -24,22 +26,48 @@ public class UsuarioService {
     @Autowired
     private UsuarioValidator usuarioValidator;
 
+    @Autowired
+    private SetorRepository setorRepository;
+
+    @Autowired
+    private TabelaFreteRepository tabelaFreteRepository;
+
     public UsuarioResponseDTO criar(UsuarioRequestDTO request) {
-        usuarioValidator.validar(request);
+        usuarioValidator.validar(request, true);
         Usuario usuario = new Usuario();
-        BeanUtils.copyProperties(request, usuario);
+        updateUsuarioFromDTO(request, usuario);
         usuario.setSenha(convertToMD5(request.getSenha()));
         usuario.setAtivo(true);
         return toDTO(usuarioRepository.save(usuario));
     }
 
     public UsuarioResponseDTO alterar(Long id, UsuarioRequestDTO request) {
-        usuarioValidator.validar(request);
+        usuarioValidator.validar(request, false);
         return usuarioRepository.findById(id).map(usuario -> {
-            BeanUtils.copyProperties(request, usuario, "id");
-            usuario.setSenha(convertToMD5(request.getSenha()));
+            updateUsuarioFromDTO(request, usuario);
+            if (request.getSenha() != null && !request.getSenha().isEmpty()) {
+                usuario.setSenha(convertToMD5(request.getSenha()));
+            }
             return toDTO(usuarioRepository.save(usuario));
         }).orElseThrow(() -> new RuntimeException("Usuário não encontrado"));
+    }
+
+    private void updateUsuarioFromDTO(UsuarioRequestDTO request, Usuario usuario) {
+        BeanUtils.copyProperties(request, usuario, "id", "senha", "setor", "tabelaFrete");
+
+        if (request.getSetorId() != null) {
+            usuario.setSetor(setorRepository.findById(request.getSetorId())
+                    .orElseThrow(() -> new RuntimeException("Setor não encontrado")));
+        } else {
+            usuario.setSetor(null);
+        }
+
+        if (request.getTabelaFreteId() != null) {
+            usuario.setTabelaFrete(tabelaFreteRepository.findById(request.getTabelaFreteId())
+                    .orElseThrow(() -> new RuntimeException("Tabela de frete não encontrada")));
+        } else {
+            usuario.setTabelaFrete(null);
+        }
     }
 
     public void desativar(Long id) {
@@ -92,6 +120,19 @@ public class UsuarioService {
     private UsuarioResponseDTO toDTO(Usuario usuario) {
         UsuarioResponseDTO dto = new UsuarioResponseDTO();
         BeanUtils.copyProperties(usuario, dto);
+
+        if (usuario.getSetor() != null) {
+            dto.setSetorId(usuario.getSetor().getId());
+        }
+
+        if (usuario.getTabelaFrete() != null) {
+            dto.setTabelaFreteId(usuario.getTabelaFrete().getId());
+        }
+
+        if (usuario.getFormaPagamento() != null) {
+            dto.setFormaPagamento(usuario.getFormaPagamento().getDescricao());
+        }
+
         return dto;
     }
 }
