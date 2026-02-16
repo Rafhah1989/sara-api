@@ -1,0 +1,1 @@
+ALTER TABLE pedido_produto ADD COLUMN quantidade DECIMAL(10,2) NOT NULL DEFAULT 1.0;
