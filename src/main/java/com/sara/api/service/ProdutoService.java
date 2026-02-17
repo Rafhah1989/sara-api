@@ -21,7 +21,15 @@ public class ProdutoService {
     }
 
     public List<Produto> buscarPorNome(String nome) {
-        return produtoRepository.findByNomeContainingIgnoreCase(nome);
+        return produtoRepository.findByNomeContainingIgnoreCaseAndAtivoTrue(nome);
+    }
+
+    public List<Produto> listarAtivos() {
+        return produtoRepository.findByAtivoTrue();
+    }
+
+    public Optional<Produto> buscarPorCodigo(Long codigo) {
+        return produtoRepository.findByCodigoAndAtivoTrue(codigo);
     }
 
     public List<Produto> listarTodos() {
@@ -40,6 +48,7 @@ public class ProdutoService {
                     produto.setTamanho(produtoAtualizado.getTamanho());
                     produto.setAtivo(produtoAtualizado.getAtivo());
                     produto.setImagem(produtoAtualizado.getImagem());
+                    produto.setCodigo(produtoAtualizado.getCodigo());
                     return produtoRepository.save(produto);
                 })
                 .orElseThrow(() -> new ValidationException("Produto não encontrado com id: " + id));

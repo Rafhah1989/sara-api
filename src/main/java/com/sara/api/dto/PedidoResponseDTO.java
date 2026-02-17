@@ -3,6 +3,7 @@ package com.sara.api.dto;
 import io.swagger.v3.oas.annotations.media.Schema;
 import lombok.Data;
 import java.math.BigDecimal;
+import java.time.LocalDateTime;
 import java.util.List;
 
 @Data
@@ -32,6 +33,9 @@ public class PedidoResponseDTO {
 
     @Schema(description = "Status de cancelamento", example = "false")
     private Boolean cancelado;
+
+    @Schema(description = "Data e hora da criação do pedido", example = "2023-10-27T10:15:30")
+    private LocalDateTime dataPedido;
 
     @Schema(description = "Lista detalhada dos produtos no pedido")
     private List<PedidoProdutoResponseDTO> produtos;

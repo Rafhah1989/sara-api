@@ -36,6 +36,20 @@ public class ProdutoController {
         return produtoService.listarTodos();
     }
 
+    @GetMapping("/ativos")
+    @Operation(summary = "Listar produtos ativos", description = "Retorna todos os produtos ativos")
+    public List<Produto> listarAtivos() {
+        return produtoService.listarAtivos();
+    }
+
+    @GetMapping("/codigo/{codigo}")
+    @Operation(summary = "Buscar por código", description = "Retorna o produto ativo com o código informado")
+    public ResponseEntity<Produto> buscarPorCodigo(@PathVariable("codigo") Long codigo) {
+        return produtoService.buscarPorCodigo(codigo)
+                .map(ResponseEntity::ok)
+                .orElse(ResponseEntity.notFound().build());
+    }
+
     @PutMapping("/{id}")
     @Operation(summary = "Alterar produto", description = "Atualiza os dados de um produto existente por ID")
     public ResponseEntity<Produto> alterar(@PathVariable("id") Long id, @RequestBody Produto produto) {

@@ -4,9 +4,7 @@ import com.lowagie.text.*;
 import com.lowagie.text.Font;
 import com.lowagie.text.Image;
 import com.lowagie.text.Rectangle;
-import com.lowagie.text.pdf.PdfPCell;
-import com.lowagie.text.pdf.PdfPTable;
-import com.lowagie.text.pdf.PdfWriter;
+import com.lowagie.text.pdf.*;
 import com.sara.api.model.Pedido;
 import com.sara.api.model.PedidoProduto;
 import com.sara.api.model.Usuario;
@@ -32,9 +30,13 @@ public class PedidoPdfService {
     public byte[] generatePedidoPdf(Pedido pedido) {
         ByteArrayOutputStream out = new ByteArrayOutputStream();
         Document document = new Document(PageSize.A4);
-        PdfWriter.getInstance(document, out);
+        PdfWriter writer = PdfWriter.getInstance(document, out);
 
         document.open();
+
+        if (Boolean.TRUE.equals(pedido.getCancelado())) {
+            addWatermark(writer);
+        }
 
         addHeader(document);
         addOrderInfo(document, pedido);
@@ -185,5 +187,19 @@ public class PedidoPdfService {
         valueCell.setBorder(Rectangle.NO_BORDER);
         valueCell.setHorizontalAlignment(Element.ALIGN_RIGHT);
         table.addCell(valueCell);
+    }
+
+    private void addWatermark(PdfWriter writer) {
+        try {
+            PdfContentByte cb = writer.getDirectContentUnder();
+            BaseFont bf = BaseFont.createFont(BaseFont.HELVETICA_BOLD, BaseFont.WINANSI, BaseFont.NOT_EMBEDDED);
+            cb.beginText();
+            cb.setFontAndSize(bf, 100);
+            cb.setRGBColorFill(220, 220, 220); // Cinza claro
+            cb.showTextAligned(Element.ALIGN_CENTER, "CANCELADO", 297, 421, 45); // 45 graus, centro da página A4
+            cb.endText();
+        } catch (Exception e) {
+            // Se falhar ao adicionar marca d'água, continua gerando o PDF normalmente
+        }
     }
 }

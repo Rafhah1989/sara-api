@@ -5,9 +5,18 @@ import com.sara.api.model.*;
 import com.sara.api.repository.*;
 import jakarta.persistence.EntityNotFoundException;
 import lombok.RequiredArgsConstructor;
+import org.springframework.data.domain.Page;
+import jakarta.persistence.criteria.Predicate;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.Sort;
+import org.springframework.data.jpa.domain.Specification;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.math.BigDecimal;
+import java.time.LocalDateTime;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.stream.Collectors;
 
@@ -28,10 +37,75 @@ public class PedidoService {
                 .orElseThrow(() -> new EntityNotFoundException("Pedido não encontrado com ID: " + id));
     }
 
+    public BigDecimal sugerirFrete(Long usuarioId) {
+        Usuario usuario = usuarioRepository.findById(usuarioId)
+                .orElseThrow(() -> new EntityNotFoundException("Usuário não encontrado: " + usuarioId));
+
+        // 1. Prioridade: Tabela de frete direta no usuário
+        if (usuario.getTabelaFrete() != null && usuario.getTabelaFrete().getAtivo()) {
+            return usuario.getTabelaFrete().getValor();
+        }
+
+        // 2. Fallback: Primeira tabela ativa do setor do usuário
+        if (usuario.getSetor() != null && usuario.getSetor().getTabelasFrete() != null) {
+            return usuario.getSetor().getTabelasFrete().stream()
+                    .filter(TabelaFrete::getAtivo)
+                    .findFirst()
+                    .map(TabelaFrete::getValor)
+                    .orElse(BigDecimal.ZERO);
+        }
+
+        return BigDecimal.ZERO;
+    }
+
     public List<PedidoResponseDTO> findByUsuario(Long usuarioId) {
         return pedidoRepository.findByUsuarioId(usuarioId).stream()
                 .map(this::convertToResponseDTO)
                 .collect(Collectors.toList());
+    }
+
+    public Page<PedidoResponseDTO> findAll(
+            Long id,
+            String clienteNome,
+            LocalDateTime dataInicio,
+            LocalDateTime dataFim,
+            Boolean exibirCancelados,
+            Pageable pageable) {
+
+        if (pageable.getSort().isUnsorted()) {
+            pageable = PageRequest.of(pageable.getPageNumber(), pageable.getPageSize(),
+                    Sort.by(Sort.Direction.ASC, "cancelado")
+                            .and(Sort.by(Sort.Direction.DESC, "dataPedido"))
+                            .and(Sort.by(Sort.Direction.DESC, "id")));
+        }
+
+        Specification<Pedido> spec = (root, query, cb) -> {
+            List<Predicate> predicates = new ArrayList<>();
+
+            if (id != null) {
+                predicates.add(cb.equal(root.get("id"), id));
+            }
+            if (clienteNome != null && !clienteNome.isEmpty()) {
+                predicates
+                        .add(cb.like(cb.upper(root.get("usuario").get("nome")), "%" + clienteNome.toUpperCase() + "%"));
+            }
+            if (dataInicio != null) {
+                predicates.add(cb.greaterThanOrEqualTo(root.get("dataPedido"), dataInicio));
+            }
+            if (dataFim != null) {
+                predicates.add(cb.lessThanOrEqualTo(root.get("dataPedido"), dataFim));
+            }
+
+            if (Boolean.FALSE.equals(exibirCancelados)) {
+                // Se não for para exibir cancelados, filtra onde cancelado é false ou nulo
+                predicates.add(cb.or(cb.isFalse(root.get("cancelado")), cb.isNull(root.get("cancelado"))));
+            }
+
+            return cb.and(predicates.toArray(new Predicate[0]));
+        };
+
+        return pedidoRepository.findAll(spec, pageable)
+                .map(this::convertToResponseDTO);
     }
 
     @Transactional
@@ -116,12 +190,14 @@ public class PedidoService {
         response.setValorTotal(pedido.getValorTotal());
         response.setObservacao(pedido.getObservacao());
         response.setCancelado(pedido.getCancelado());
+        response.setDataPedido(pedido.getDataPedido());
 
         response.setProdutos(pedido.getProdutos().stream().map(item -> {
             PedidoProdutoResponseDTO itemDTO = new PedidoProdutoResponseDTO();
             itemDTO.setId(item.getId());
             itemDTO.setProdutoId(item.getProduto().getId());
             itemDTO.setProdutoNome(item.getProduto().getNome());
+            itemDTO.setProdutoCodigo(item.getProduto().getCodigo());
             itemDTO.setValor(item.getValor());
             itemDTO.setQuantidade(item.getQuantidade());
             itemDTO.setDesconto(item.getDesconto());
