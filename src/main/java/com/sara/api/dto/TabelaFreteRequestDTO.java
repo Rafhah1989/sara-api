@@ -15,4 +15,13 @@ public class TabelaFreteRequestDTO {
 
     @Schema(description = "Indica se a tabela deve ser criada como ativa", example = "true")
     private Boolean ativo;
+
+    @Schema(description = "Quantidade para mudança de faixa (opcional)", example = "3.5")
+    private Double quantidadeFaixa;
+
+    @Schema(description = "Valor da faixa (opcional)", example = "15.00")
+    private BigDecimal valorFaixa;
+
+    @Schema(description = "Peso mínimo para aplicar faixa (em gramas)", example = "1000")
+    private Double minimoFaixa;
 }

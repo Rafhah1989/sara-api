@@ -37,25 +37,40 @@ public class PedidoService {
                 .orElseThrow(() -> new EntityNotFoundException("Pedido não encontrado com ID: " + id));
     }
 
-    public BigDecimal sugerirFrete(Long usuarioId) {
+    public TabelaFreteResponseDTO sugerirFrete(Long usuarioId) {
         Usuario usuario = usuarioRepository.findById(usuarioId)
                 .orElseThrow(() -> new EntityNotFoundException("Usuário não encontrado: " + usuarioId));
 
+        TabelaFrete tabela = null;
+
         // 1. Prioridade: Tabela de frete direta no usuário
         if (usuario.getTabelaFrete() != null && usuario.getTabelaFrete().getAtivo()) {
-            return usuario.getTabelaFrete().getValor();
+            tabela = usuario.getTabelaFrete();
         }
-
         // 2. Fallback: Primeira tabela ativa do setor do usuário
-        if (usuario.getSetor() != null && usuario.getSetor().getTabelasFrete() != null) {
-            return usuario.getSetor().getTabelasFrete().stream()
+        else if (usuario.getSetor() != null && usuario.getSetor().getTabelasFrete() != null) {
+            tabela = usuario.getSetor().getTabelasFrete().stream()
                     .filter(TabelaFrete::getAtivo)
                     .findFirst()
-                    .map(TabelaFrete::getValor)
-                    .orElse(BigDecimal.ZERO);
+                    .orElse(null);
         }
 
-        return BigDecimal.ZERO;
+        if (tabela != null) {
+            TabelaFreteResponseDTO dto = new TabelaFreteResponseDTO();
+            dto.setId(tabela.getId());
+            dto.setDescricao(tabela.getDescricao());
+            dto.setValor(tabela.getValor());
+            dto.setAtivo(tabela.getAtivo());
+            dto.setQuantidadeFaixa(tabela.getQuantidadeFaixa());
+            dto.setValorFaixa(tabela.getValorFaixa());
+            dto.setMinimoFaixa(tabela.getMinimoFaixa());
+            return dto;
+        }
+
+        // Return empty/zero DTO if no table found
+        TabelaFreteResponseDTO empty = new TabelaFreteResponseDTO();
+        empty.setValor(BigDecimal.ZERO);
+        return empty;
     }
 
     public List<PedidoResponseDTO> findByUsuario(Long usuarioId) {
@@ -176,7 +191,11 @@ public class PedidoService {
         item.setValor(dto.getValor());
         item.setQuantidade(dto.getQuantidade());
         item.setDesconto(dto.getDesconto());
-        item.setPeso(dto.getPeso());
+        if (produto.getPeso() != null) {
+            item.setPeso(BigDecimal.valueOf(produto.getPeso()));
+        } else {
+            item.setPeso(BigDecimal.ZERO);
+        }
         return item;
     }
 
@@ -201,7 +220,9 @@ public class PedidoService {
             itemDTO.setValor(item.getValor());
             itemDTO.setQuantidade(item.getQuantidade());
             itemDTO.setDesconto(item.getDesconto());
-            itemDTO.setPeso(item.getPeso());
+            itemDTO.setPeso(item.getPeso() != null ? item.getPeso().doubleValue() : 0.0);
+            itemDTO.setImagem(item.getProduto().getImagem());
+            itemDTO.setTamanho(item.getProduto().getTamanho());
             return itemDTO;
         }).collect(Collectors.toList()));
 

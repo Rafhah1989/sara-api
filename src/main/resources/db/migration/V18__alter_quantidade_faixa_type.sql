@@ -1,0 +1,1 @@
+ALTER TABLE tabela_frete ALTER COLUMN quantidade_faixa TYPE DOUBLE PRECISION;

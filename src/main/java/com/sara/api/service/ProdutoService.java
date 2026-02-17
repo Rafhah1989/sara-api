@@ -49,6 +49,7 @@ public class ProdutoService {
                     produto.setAtivo(produtoAtualizado.getAtivo());
                     produto.setImagem(produtoAtualizado.getImagem());
                     produto.setCodigo(produtoAtualizado.getCodigo());
+                    produto.setPeso(produtoAtualizado.getPeso());
                     return produtoRepository.save(produto);
                 })
                 .orElseThrow(() -> new ValidationException("Produto não encontrado com id: " + id));

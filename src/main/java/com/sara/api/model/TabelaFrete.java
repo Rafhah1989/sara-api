@@ -26,4 +26,13 @@ public class TabelaFrete {
     @Column(nullable = false)
     private Boolean ativo = true;
 
+    @Column(name = "quantidade_faixa")
+    private Double quantidadeFaixa;
+
+    @Column(name = "valor_faixa")
+    private BigDecimal valorFaixa;
+
+    @Column(name = "minimo_faixa")
+    private Double minimoFaixa;
+
 }

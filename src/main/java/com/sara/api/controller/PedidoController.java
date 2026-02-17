@@ -17,7 +17,6 @@ import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
-import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.util.List;
 
@@ -58,7 +57,8 @@ public class PedidoController {
 
     @GetMapping("/sugestao-frete/{usuarioId}")
     @Operation(summary = "Sugerir valor de frete", description = "Retorna o valor de frete padrão baseado no setor/tabela do usuário")
-    public ResponseEntity<BigDecimal> sugerirFrete(@PathVariable("usuarioId") Long usuarioId) {
+    public ResponseEntity<com.sara.api.dto.TabelaFreteResponseDTO> sugerirFrete(
+            @PathVariable("usuarioId") Long usuarioId) {
         return ResponseEntity.ok(pedidoService.sugerirFrete(usuarioId));
     }
 

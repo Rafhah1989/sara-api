@@ -18,4 +18,13 @@ public class TabelaFreteResponseDTO {
 
     @Schema(description = "Indica se a tabela está ativa no sistema", example = "true")
     private Boolean ativo;
+
+    @Schema(description = "Quantidade para mudança de faixa", example = "3.5")
+    private Double quantidadeFaixa;
+
+    @Schema(description = "Valor da faixa", example = "15.00")
+    private BigDecimal valorFaixa;
+
+    @Schema(description = "Peso mínimo para aplicar faixa (em gramas)", example = "1000")
+    private Double minimoFaixa;
 }

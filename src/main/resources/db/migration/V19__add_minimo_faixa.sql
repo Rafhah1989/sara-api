@@ -1,0 +1,1 @@
+ALTER TABLE tabela_frete ADD COLUMN minimo_faixa DOUBLE PRECISION;

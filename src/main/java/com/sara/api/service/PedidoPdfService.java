@@ -156,8 +156,26 @@ public class PedidoPdfService {
         table.setWidthPercentage(40);
         table.setHorizontalAlignment(Element.ALIGN_RIGHT);
 
+        // Calculate total of products (without discount/freight)
+        BigDecimal totalProdutos = pedido.getProdutos().stream()
+                .map(item -> item.getValor().multiply(item.getQuantidade()))
+                .reduce(BigDecimal.ZERO, BigDecimal::add);
+
+        addSummaryRow(table, "Total dos Produtos:", totalProdutos);
         addSummaryRow(table, "Frete:", pedido.getFrete());
-        addSummaryRow(table, "Desconto:", pedido.getDesconto());
+
+        // Custom row for discount percentage (String)
+        PdfPCell labelCell = new PdfPCell(new Phrase("Desconto:", normalFont));
+        labelCell.setBorder(Rectangle.NO_BORDER);
+        labelCell.setHorizontalAlignment(Element.ALIGN_RIGHT);
+        table.addCell(labelCell);
+
+        String descontoStr = pedido.getDesconto() != null ? pedido.getDesconto().toString() + "%" : "0%";
+        PdfPCell valueCell = new PdfPCell(new Phrase(descontoStr, normalFont));
+        valueCell.setBorder(Rectangle.NO_BORDER);
+        valueCell.setHorizontalAlignment(Element.ALIGN_RIGHT);
+        table.addCell(valueCell);
+
         addSummaryRow(table, "VALOR TOTAL:", pedido.getValorTotal(), boldFont);
 
         document.add(table);
