@@ -25,7 +25,7 @@ public class PedidoPdfService {
     private final Font boldFont = FontFactory.getFont(FontFactory.HELVETICA_BOLD, 10, Color.BLACK);
     private final Font titleFont = FontFactory.getFont(FontFactory.HELVETICA_BOLD, 12, Color.BLACK);
 
-    private static final String LOGO_PATH = "/images/logo-sara.png";
+    private static final String LOGO_PATH = "/images/logo_sara_menor.jpeg";
 
     public byte[] generatePedidoPdf(Pedido pedido) {
         ByteArrayOutputStream out = new ByteArrayOutputStream();
