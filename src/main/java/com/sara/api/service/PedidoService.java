@@ -11,6 +11,7 @@ import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Sort;
 import org.springframework.data.jpa.domain.Specification;
+import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -96,6 +97,15 @@ public class PedidoService {
 
         Specification<Pedido> spec = (root, query, cb) -> {
             List<Predicate> predicates = new ArrayList<>();
+
+            // Regra: CLIENTE vê apenas seus próprios pedidos
+            var authentication = SecurityContextHolder.getContext().getAuthentication();
+            if (authentication != null && authentication.getPrincipal() instanceof Usuario) {
+                Usuario user = (Usuario) authentication.getPrincipal();
+                if (user.getRole() == Role.CLIENTE) {
+                    predicates.add(cb.equal(root.get("usuario").get("id"), user.getId()));
+                }
+            }
 
             if (id != null) {
                 predicates.add(cb.equal(root.get("id"), id));

@@ -2,13 +2,16 @@ package com.sara.api.service;
 
 import com.sara.api.dto.UsuarioRequestDTO;
 import com.sara.api.dto.UsuarioResponseDTO;
+import com.sara.api.model.Role;
 import com.sara.api.model.Usuario;
 import com.sara.api.repository.UsuarioRepository;
 import com.sara.api.repository.SetorRepository;
 import com.sara.api.repository.TabelaFreteRepository;
 import com.sara.api.validator.UsuarioValidator;
+import com.sara.api.exception.ValidationException;
 import org.springframework.beans.BeanUtils;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 
 import java.security.MessageDigest;
@@ -44,6 +47,9 @@ public class UsuarioService {
     public UsuarioResponseDTO alterar(Long id, UsuarioRequestDTO request) {
         usuarioValidator.validar(request, false);
         return usuarioRepository.findById(id).map(usuario -> {
+            if (usuario.getRole() == Role.ADMIN && request.getRole() != Role.ADMIN && usuario.getAtivo() && usuarioRepository.countByRoleAndAtivoTrue(Role.ADMIN) <= 1) {
+                throw new ValidationException("Não é possível remover o perfil de ADMIN. O sistema deve possuir pelo menos um ADMIN ativo.", HttpStatus.BAD_REQUEST);
+            }
             updateUsuarioFromDTO(request, usuario);
             if (request.getSenha() != null && !request.getSenha().isEmpty()) {
                 usuario.setSenha(convertToMD5(request.getSenha()));
@@ -72,6 +78,9 @@ public class UsuarioService {
 
     public void desativar(Long id) {
         usuarioRepository.findById(id).ifPresent(usuario -> {
+            if (usuario.getRole() == Role.ADMIN && usuarioRepository.countByRoleAndAtivoTrue(Role.ADMIN) <= 1) {
+                throw new ValidationException("Não é possível desativar o usuário. O sistema deve possuir pelo menos um ADMIN ativo.", HttpStatus.BAD_REQUEST);
+            }
             usuario.setAtivo(false);
             usuarioRepository.save(usuario);
         });
