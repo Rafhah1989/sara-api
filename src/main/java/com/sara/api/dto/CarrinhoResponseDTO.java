@@ -1,0 +1,37 @@
+package com.sara.api.dto;
+
+import com.sara.api.model.Role;
+import io.swagger.v3.oas.annotations.media.Schema;
+import lombok.Data;
+
+@Data
+@Schema(description = "Resposta formatada do Carrinho contendo informações embutidas do Produto e Usuário")
+public class CarrinhoResponseDTO {
+    
+    @Schema(description = "ID do Usuário")
+    private Long usuarioId;
+    @Schema(description = "Nome do Usuário")
+    private String usuarioNome;
+    @Schema(description = "CPF/CNPJ do Usuário")
+    private String usuarioCpfCnpj;
+    @Schema(description = "Role do Usuário")
+    private Role usuarioRole;
+    
+    @Schema(description = "ID do Produto")
+    private Long produtoId;
+    @Schema(description = "Nome do Produto")
+    private String produtoNome;
+    @Schema(description = "Código do Produto")
+    private Long produtoCodigo;
+    @Schema(description = "Preço do Produto")
+    private Double produtoPreco;
+    @Schema(description = "Imagem base64 do Produto")
+    private String produtoImagem;
+    @Schema(description = "Tamanho do Produto")
+    private Integer produtoTamanho;
+    @Schema(description = "Status Ativo do Produto")
+    private Boolean produtoAtivo;
+
+    @Schema(description = "Quantidade no carrinho")
+    private Integer quantidade;
+}

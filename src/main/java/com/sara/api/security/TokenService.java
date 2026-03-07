@@ -24,6 +24,7 @@ public class TokenService {
             return JWT.create()
                     .withIssuer("API Sara")
                     .withSubject(usuario.getCpfCnpj())
+                    .withClaim("id", usuario.getId())
                     .withClaim("nome", usuario.getNome())
                     .withClaim("role", usuario.getRole().name())
                     .withExpiresAt(dataExpiracao())

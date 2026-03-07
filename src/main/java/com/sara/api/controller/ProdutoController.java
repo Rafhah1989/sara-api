@@ -42,6 +42,16 @@ public class ProdutoController {
         return produtoService.listarAtivos();
     }
 
+    @GetMapping("/loja")
+    @Operation(summary = "Pesquisa da Loja Vitrine", description = "Filtro avançado por nome, tamanho e faixa de preço")
+    public List<Produto> buscarParaLoja(
+            @RequestParam(required = false) String nome,
+            @RequestParam(required = false) Integer tamanho,
+            @RequestParam(required = false) Double precoMin,
+            @RequestParam(required = false) Double precoMax) {
+        return produtoService.buscarParaLoja(nome, tamanho, precoMin, precoMax);
+    }
+
     @GetMapping("/codigo/{codigo}")
     @Operation(summary = "Buscar por código", description = "Retorna o produto ativo com o código informado")
     public ResponseEntity<Produto> buscarPorCodigo(@PathVariable("codigo") Long codigo) {

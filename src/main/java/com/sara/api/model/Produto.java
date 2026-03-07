@@ -22,5 +22,6 @@ public class Produto {
     private Boolean ativo = true;
     private String imagem;
     private Long codigo;
+    private Double preco;
     private Double peso;
 }
