@@ -38,6 +38,8 @@ public class SecurityConfigurations {
                     req.requestMatchers("/api/pedidos/**").authenticated();
                     req.requestMatchers("/api/carrinho/**").authenticated();
                     req.requestMatchers(HttpMethod.GET, "/api/produtos", "/api/produtos/**").authenticated();
+                    req.requestMatchers(HttpMethod.GET, "/api/usuarios/{id}").authenticated();
+                    req.requestMatchers(HttpMethod.GET, "/api/formas-pagamento", "/api/formas-pagamento/**").authenticated();
                     req.anyRequest().hasRole("ADMIN");
                 })
                 .addFilterBefore(securityFilter, UsernamePasswordAuthenticationFilter.class)

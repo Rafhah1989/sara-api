@@ -59,6 +59,10 @@ public class CarrinhoService {
         carrinhoRepository.deleteById(id);
     }
 
+    public void limparCarrinhoUsuario(Long usuarioId) {
+        carrinhoRepository.deleteByUsuarioId(usuarioId);
+    }
+
     public CarrinhoResponseDTO atualizarQuantidade(Long usuarioId, Long produtoId, Integer quantidade) {
         CarrinhoId id = new CarrinhoId(usuarioId, produtoId);
         Carrinho carrinho = carrinhoRepository.findById(id)
@@ -108,6 +112,7 @@ public class CarrinhoService {
         dto.setProdutoAtivo(p.getAtivo());
         dto.setProdutoTamanho(p.getTamanho());
         dto.setProdutoImagem(p.getImagem());
+        dto.setProdutoPeso(p.getPeso());
         dto.setQuantidade(carrinho.getQuantidade());
         
         return dto;

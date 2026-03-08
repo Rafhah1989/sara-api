@@ -28,6 +28,7 @@ public class PedidoService {
     private final PedidoRepository pedidoRepository;
     private final UsuarioRepository usuarioRepository;
     private final ProdutoRepository produtoRepository;
+    private final FormaPagamentoRepository formaPagamentoRepository;
 
     public PedidoResponseDTO findById(Long id) {
         return convertToResponseDTO(getPedidoEntity(id));
@@ -189,6 +190,13 @@ public class PedidoService {
         pedido.setFrete(request.getFrete());
         pedido.setValorTotal(request.getValorTotal());
         pedido.setObservacao(request.getObservacao());
+
+        if (request.getFormaPagamentoId() != null) {
+            pedido.setFormaPagamento(formaPagamentoRepository.findById(request.getFormaPagamentoId())
+                    .orElseThrow(() -> new EntityNotFoundException("Forma de Pagamento não encontrada")));
+        } else {
+            pedido.setFormaPagamento(null);
+        }
     }
 
     private PedidoProduto createPedidoProduto(PedidoProdutoRequestDTO dto, Pedido pedido) {
@@ -220,6 +228,11 @@ public class PedidoService {
         response.setObservacao(pedido.getObservacao());
         response.setCancelado(pedido.getCancelado());
         response.setDataPedido(pedido.getDataPedido());
+
+        if (pedido.getFormaPagamento() != null) {
+            response.setFormaPagamentoId(pedido.getFormaPagamento().getId());
+            response.setFormaPagamentoDescricao(pedido.getFormaPagamento().getDescricao());
+        }
 
         response.setProdutos(pedido.getProdutos().stream().map(item -> {
             PedidoProdutoResponseDTO itemDTO = new PedidoProdutoResponseDTO();

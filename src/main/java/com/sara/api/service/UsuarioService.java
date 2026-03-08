@@ -7,6 +7,7 @@ import com.sara.api.model.Usuario;
 import com.sara.api.repository.UsuarioRepository;
 import com.sara.api.repository.SetorRepository;
 import com.sara.api.repository.TabelaFreteRepository;
+import com.sara.api.repository.FormaPagamentoRepository;
 import com.sara.api.validator.UsuarioValidator;
 import com.sara.api.exception.ValidationException;
 import org.springframework.beans.BeanUtils;
@@ -34,6 +35,9 @@ public class UsuarioService {
 
     @Autowired
     private TabelaFreteRepository tabelaFreteRepository;
+
+    @Autowired
+    private FormaPagamentoRepository formaPagamentoRepository;
 
     public UsuarioResponseDTO criar(UsuarioRequestDTO request) {
         usuarioValidator.validar(request, true);
@@ -73,6 +77,13 @@ public class UsuarioService {
                     .orElseThrow(() -> new RuntimeException("Tabela de frete não encontrada")));
         } else {
             usuario.setTabelaFrete(null);
+        }
+
+        if (request.getFormaPagamentoId() != null) {
+            usuario.setFormaPagamento(formaPagamentoRepository.findById(request.getFormaPagamentoId())
+                    .orElseThrow(() -> new RuntimeException("Forma de Pagamento não encontrada")));
+        } else {
+            usuario.setFormaPagamento(null);
         }
     }
 
@@ -139,7 +150,8 @@ public class UsuarioService {
         }
 
         if (usuario.getFormaPagamento() != null) {
-            dto.setFormaPagamento(usuario.getFormaPagamento().getDescricao());
+            dto.setFormaPagamentoId(usuario.getFormaPagamento().getId());
+            dto.setFormaPagamentoDescricao(usuario.getFormaPagamento().getDescricao());
         }
 
         return dto;

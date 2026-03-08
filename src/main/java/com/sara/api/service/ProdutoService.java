@@ -93,4 +93,10 @@ public class ProdutoService {
         };
         return produtoRepository.findAll(spec);
     }
+
+    public List<Produto> buscarOutrosTamanhos(Long id) {
+        Produto produtoOriginal = produtoRepository.findById(id)
+                .orElseThrow(() -> new ValidationException("Produto original não encontrado"));
+        return produtoRepository.findByNomeAndAtivoTrueAndIdNot(produtoOriginal.getNome(), id);
+    }
 }

@@ -60,6 +60,12 @@ public class ProdutoController {
                 .orElse(ResponseEntity.notFound().build());
     }
 
+    @GetMapping("/{id}/outros-tamanhos")
+    @Operation(summary = "Sugestão de Compra de Outros Tamanhos", description = "Busca produtos com o mesmo nome exato do produto logado, porém que têm um ID diferente.")
+    public List<Produto> buscarOutrosTamanhos(@PathVariable("id") Long id) {
+        return produtoService.buscarOutrosTamanhos(id);
+    }
+
     @PutMapping("/{id}")
     @Operation(summary = "Alterar produto", description = "Atualiza os dados de um produto existente por ID")
     public ResponseEntity<Produto> alterar(@PathVariable("id") Long id, @RequestBody Produto produto) {

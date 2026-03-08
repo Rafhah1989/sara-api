@@ -47,8 +47,8 @@ public class UsuarioRequestDTO {
     @Schema(description = "Nome do Tesoureiro", example = "Paula")
     private String tesoureiro;
 
-    @Schema(description = "Forma de pagamento preferencial", example = "PIX")
-    private FormaPagamento formaPagamento;
+    @Schema(description = "ID da Forma de pagamento preferencial", example = "1")
+    private Long formaPagamentoId;
 
     @Schema(description = "Percentual de desconto", example = "10.0")
     private java.math.BigDecimal desconto;

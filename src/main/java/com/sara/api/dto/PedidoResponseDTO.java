@@ -19,6 +19,12 @@ public class PedidoResponseDTO {
     @Schema(description = "Nome do usuário (opcional para exibição)", example = "João da Silva")
     private String usuarioNome;
 
+    @Schema(description = "ID da Forma de Pagamento", example = "1")
+    private Long formaPagamentoId;
+
+    @Schema(description = "Descrição da Forma de Pagamento", example = "PIX")
+    private String formaPagamentoDescricao;
+
     @Schema(description = "Desconto total do pedido", example = "10.00")
     private BigDecimal desconto;
 

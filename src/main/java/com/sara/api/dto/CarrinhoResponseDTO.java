@@ -32,6 +32,9 @@ public class CarrinhoResponseDTO {
     @Schema(description = "Status Ativo do Produto")
     private Boolean produtoAtivo;
 
+    @Schema(description = "Peso do Produto")
+    private Double produtoPeso;
+    
     @Schema(description = "Quantidade no carrinho")
     private Integer quantidade;
 }

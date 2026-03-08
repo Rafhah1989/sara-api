@@ -49,8 +49,11 @@ public class UsuarioResponseDTO {
     @Schema(description = "Tesoureiro", example = "Maria")
     private String tesoureiro;
 
-    @Schema(description = "Forma de Pagamento", example = "PIX")
-    private String formaPagamento;
+    @Schema(description = "ID da Forma de Pagamento", example = "1")
+    private Long formaPagamentoId;
+
+    @Schema(description = "Descrição da Forma de Pagamento", example = "PIX")
+    private String formaPagamentoDescricao;
 
     @Schema(description = "Desconto", example = "5.0")
     private java.math.BigDecimal desconto;

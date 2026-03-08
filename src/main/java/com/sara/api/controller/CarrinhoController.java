@@ -35,6 +35,13 @@ public class CarrinhoController {
         return ResponseEntity.noContent().build();
     }
 
+    @DeleteMapping("/usuario/{idUsuario}")
+    @Operation(summary = "Limpar Todo o Carrinho", description = "Remove todos os produtos da sacola de compras do usuário")
+    public ResponseEntity<Void> limparCarrinho(@PathVariable Long idUsuario) {
+        carrinhoService.limparCarrinhoUsuario(idUsuario);
+        return ResponseEntity.noContent().build();
+    }
+
     @PutMapping("/{idUsuario}/{idProduto}")
     @Operation(summary = "Atualizar quantidade", description = "Edita a quantidade de um produto no carrinho do usuário")
     public ResponseEntity<CarrinhoResponseDTO> atualizarQuantidade(

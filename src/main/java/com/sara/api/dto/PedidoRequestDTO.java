@@ -12,6 +12,9 @@ public class PedidoRequestDTO {
     @Schema(description = "ID do usuário que realizou o pedido", example = "1")
     private Long usuarioId;
 
+    @Schema(description = "ID da Forma de Pagamento escolhida", example = "1")
+    private Long formaPagamentoId;
+
     @Schema(description = "Valor do desconto aplicado ao pedido", example = "10.00")
     private BigDecimal desconto;
 

@@ -23,6 +23,10 @@ public class Pedido {
     @JoinColumn(name = "usuario_id", nullable = false)
     private Usuario usuario;
 
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "forma_pagamento_id")
+    private FormaPagamento formaPagamento;
+
     private BigDecimal desconto;
     private BigDecimal frete;
 

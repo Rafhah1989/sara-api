@@ -57,8 +57,8 @@ public class Usuario implements UserDetails {
 
     private String tesoureiro;
 
-    @Enumerated(EnumType.STRING)
-    @Column(name = "forma_pagamento")
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "forma_pagamento_id")
     private FormaPagamento formaPagamento;
 
     private java.math.BigDecimal desconto;
