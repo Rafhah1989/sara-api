@@ -27,6 +27,9 @@ public class PedidoRequestDTO {
     @Schema(description = "Observação opcional sobre o pedido", example = "Entregar após as 14h")
     private String observacao;
 
+    @Schema(description = "Situação do pedido", example = "NOVO")
+    private com.sara.api.model.SituacaoPedido situacao;
+
     @Schema(description = "Lista de produtos e seus detalhes no pedido")
     private List<PedidoProdutoRequestDTO> produtos;
 }

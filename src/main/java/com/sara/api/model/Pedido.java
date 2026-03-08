@@ -41,6 +41,10 @@ public class Pedido {
     @Column(name = "data_pedido", updatable = false)
     private LocalDateTime dataPedido;
 
+    @Enumerated(EnumType.STRING)
+    @Column(nullable = false)
+    private SituacaoPedido situacao = SituacaoPedido.NOVO;
+
     @OneToMany(mappedBy = "pedido", cascade = CascadeType.ALL, orphanRemoval = true)
     private List<PedidoProduto> produtos = new ArrayList<>();
 

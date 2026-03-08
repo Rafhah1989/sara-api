@@ -45,11 +45,12 @@ public class PedidoController {
             @RequestParam(value = "clienteNome", required = false) String clienteNome,
             @RequestParam(value = "dataInicio", required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) LocalDateTime dataInicio,
             @RequestParam(value = "dataFim", required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) LocalDateTime dataFim,
+            @RequestParam(value = "situacao", required = false) com.sara.api.model.SituacaoPedido situacao,
             @RequestParam(value = "exibirCancelados", required = false, defaultValue = "false") Boolean exibirCancelados,
             Pageable pageable) {
 
         return ResponseEntity
-                .ok(pedidoService.findAll(id, clienteNome, dataInicio, dataFim, exibirCancelados, pageable));
+                .ok(pedidoService.findAll(id, clienteNome, dataInicio, dataFim, situacao, exibirCancelados, pageable));
     }
 
     @GetMapping("/usuario/{usuarioId}")

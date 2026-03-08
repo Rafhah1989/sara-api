@@ -86,6 +86,7 @@ public class PedidoService {
             String clienteNome,
             LocalDateTime dataInicio,
             LocalDateTime dataFim,
+            SituacaoPedido situacao,
             Boolean exibirCancelados,
             Pageable pageable) {
 
@@ -121,6 +122,9 @@ public class PedidoService {
             if (dataFim != null) {
                 predicates.add(cb.lessThanOrEqualTo(root.get("dataPedido"), dataFim));
             }
+            if (situacao != null) {
+                predicates.add(cb.equal(root.get("situacao"), situacao));
+            }
 
             if (Boolean.FALSE.equals(exibirCancelados)) {
                 // Se não for para exibir cancelados, filtra onde cancelado é false ou nulo
@@ -142,6 +146,7 @@ public class PedidoService {
         Pedido pedido = new Pedido();
         pedido.setUsuario(usuario);
         updatePedidoFromDTO(pedido, request);
+        pedido.setSituacao(SituacaoPedido.NOVO);
 
         // Map items
         if (request.getProdutos() != null) {
@@ -191,6 +196,10 @@ public class PedidoService {
         pedido.setValorTotal(request.getValorTotal());
         pedido.setObservacao(request.getObservacao());
 
+        if (request.getSituacao() != null) {
+            pedido.setSituacao(request.getSituacao());
+        }
+
         if (request.getFormaPagamentoId() != null) {
             pedido.setFormaPagamento(formaPagamentoRepository.findById(request.getFormaPagamentoId())
                     .orElseThrow(() -> new EntityNotFoundException("Forma de Pagamento não encontrada")));
@@ -227,6 +236,10 @@ public class PedidoService {
         response.setValorTotal(pedido.getValorTotal());
         response.setObservacao(pedido.getObservacao());
         response.setCancelado(pedido.getCancelado());
+        response.setSituacao(pedido.getSituacao());
+        if (pedido.getSituacao() != null) {
+            response.setSituacaoDescricao(pedido.getSituacao().getDescricao());
+        }
         response.setDataPedido(pedido.getDataPedido());
 
         if (pedido.getFormaPagamento() != null) {
