@@ -40,10 +40,10 @@ public class PedidoResponseDTO {
     @Schema(description = "Status de cancelamento", example = "false")
     private Boolean cancelado;
 
-    @Schema(description = "Situação do pedido", example = "NOVO")
+    @Schema(description = "Situação do pedido", example = "PENDENTE")
     private com.sara.api.model.SituacaoPedido situacao;
 
-    @Schema(description = "Descrição formatada da situação", example = "Novo")
+    @Schema(description = "Descrição formatada da situação", example = "Pendente")
     private String situacaoDescricao;
 
     @Schema(description = "Data e hora da criação do pedido", example = "2023-10-27T10:15:30")

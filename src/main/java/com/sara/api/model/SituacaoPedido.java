@@ -4,7 +4,7 @@ import lombok.Getter;
 
 @Getter
 public enum SituacaoPedido {
-    NOVO("Novo"),
+    PENDENTE("Pendente"),
     EM_PRODUCAO("Em Produção"),
     EM_ENTREGA("Em Entrega"),
     FINALIZADO("Finalizado");

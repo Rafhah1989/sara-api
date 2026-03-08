@@ -146,7 +146,7 @@ public class PedidoService {
         Pedido pedido = new Pedido();
         pedido.setUsuario(usuario);
         updatePedidoFromDTO(pedido, request);
-        pedido.setSituacao(SituacaoPedido.NOVO);
+        pedido.setSituacao(SituacaoPedido.PENDENTE);
 
         // Map items
         if (request.getProdutos() != null) {

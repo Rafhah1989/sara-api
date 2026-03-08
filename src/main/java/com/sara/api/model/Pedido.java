@@ -43,7 +43,7 @@ public class Pedido {
 
     @Enumerated(EnumType.STRING)
     @Column(nullable = false)
-    private SituacaoPedido situacao = SituacaoPedido.NOVO;
+    private SituacaoPedido situacao = SituacaoPedido.PENDENTE;
 
     @OneToMany(mappedBy = "pedido", cascade = CascadeType.ALL, orphanRemoval = true)
     private List<PedidoProduto> produtos = new ArrayList<>();
