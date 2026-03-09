@@ -190,6 +190,14 @@ public class PedidoService {
         pedidoRepository.save(pedido);
     }
 
+    @Transactional
+    public void alterarSituacao(Long id, SituacaoPedido novaSituacao) {
+        Pedido pedido = pedidoRepository.findById(id)
+                .orElseThrow(() -> new EntityNotFoundException("Pedido não encontrado"));
+        pedido.setSituacao(novaSituacao);
+        pedidoRepository.save(pedido);
+    }
+
     private void updatePedidoFromDTO(Pedido pedido, PedidoRequestDTO request) {
         pedido.setDesconto(request.getDesconto());
         pedido.setFrete(request.getFrete());

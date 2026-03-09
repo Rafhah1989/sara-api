@@ -86,6 +86,14 @@ public class PedidoController {
         return ResponseEntity.noContent().build();
     }
 
+    @PatchMapping("/{id}/situacao")
+    @Operation(summary = "Altera a situação de um pedido", description = "Atualiza apenas o status (situação) de um pedido.")
+    public ResponseEntity<Void> alterarSituacao(@PathVariable("id") Long id, @RequestBody Map<String, String> payload) {
+        com.sara.api.model.SituacaoPedido novaSituacao = com.sara.api.model.SituacaoPedido.valueOf(payload.get("situacao"));
+        pedidoService.alterarSituacao(id, novaSituacao);
+        return ResponseEntity.noContent().build();
+    }
+
     @GetMapping("/{id}/pdf")
     @Operation(summary = "Gera PDF do pedido", description = "Gera e retorna um arquivo PDF formatado com os dados do pedido")
     public ResponseEntity<byte[]> gerarPdf(@PathVariable("id") Long id) {
