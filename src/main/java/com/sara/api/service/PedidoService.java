@@ -29,6 +29,7 @@ public class PedidoService {
     private final UsuarioRepository usuarioRepository;
     private final ProdutoRepository produtoRepository;
     private final FormaPagamentoRepository formaPagamentoRepository;
+    private final EmailService emailService;
 
     public PedidoResponseDTO findById(Long id) {
         return convertToResponseDTO(getPedidoEntity(id));
@@ -157,6 +158,10 @@ public class PedidoService {
         }
 
         Pedido saved = pedidoRepository.save(pedido);
+        
+        // Dispara e-mail assíncrono para o novo pedido
+        emailService.enviarEmailNovoPedido(saved);
+        
         return convertToResponseDTO(saved);
     }
 

@@ -1,0 +1,1 @@
+ALTER TABLE configuracao ALTER COLUMN id TYPE BIGINT;
