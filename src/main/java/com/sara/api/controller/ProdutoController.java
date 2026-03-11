@@ -1,6 +1,7 @@
 package com.sara.api.controller;
 
 import com.sara.api.model.Produto;
+import com.sara.api.service.ProdutoPdfService;
 import com.sara.api.service.ProdutoService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
@@ -17,6 +18,21 @@ public class ProdutoController {
 
     @Autowired
     private ProdutoService produtoService;
+
+    @Autowired
+    private ProdutoPdfService pdfService;
+
+    @GetMapping("/catalogo")
+    @Operation(summary = "Gerar catálogo PDF", description = "Gera um PDF com todos os produtos para rascunho de pedido")
+    public ResponseEntity<byte[]> gerarCatalogo() {
+        List<Produto> produtos = produtoService.listarAtivosOrdenados();
+        byte[] pdf = pdfService.generateCatalogoPdf(produtos);
+
+        return ResponseEntity.ok()
+                .header("Content-Type", "application/pdf")
+                .header("Content-Disposition", "attachment; filename=catalogo-produtos.pdf")
+                .body(pdf);
+    }
 
     @PostMapping
     @Operation(summary = "Adicionar produto", description = "Cadastra um novo produto no catálogo")

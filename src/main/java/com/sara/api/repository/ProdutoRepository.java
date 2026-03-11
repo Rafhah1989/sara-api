@@ -16,4 +16,6 @@ public interface ProdutoRepository extends JpaRepository<Produto, Long>, JpaSpec
     java.util.Optional<Produto> findByCodigoAndAtivoTrue(Long codigo);
 
     List<Produto> findByAtivoTrue();
+
+    List<Produto> findByAtivoTrueOrderByNomeAscCodigoAscTamanhoAsc();
 }

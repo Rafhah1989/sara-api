@@ -99,4 +99,8 @@ public class ProdutoService {
                 .orElseThrow(() -> new ValidationException("Produto original não encontrado"));
         return produtoRepository.findByNomeAndAtivoTrueAndIdNot(produtoOriginal.getNome(), id);
     }
+
+    public List<Produto> listarAtivosOrdenados() {
+        return produtoRepository.findByAtivoTrueOrderByNomeAscCodigoAscTamanhoAsc();
+    }
 }
