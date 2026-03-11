@@ -81,19 +81,50 @@ public class EmailService {
         sb.append("<p><strong>Observação:</strong> ").append(pedido.getObservacao() != null ? pedido.getObservacao() : "-").append("</p>");
 
         sb.append("<h3>Itens do Pedido:</h3>");
-        sb.append("<table border='1' style='border-collapse: collapse; width: 100%;'>");
+        sb.append("<table border='1' style='border-collapse: collapse; width: 100%; font-family: Arial, sans-serif;'>");
         sb.append("<thead><tr style='background-color: #f2f2f2;'>");
-        sb.append("<th>Produto</th><th>Tamanho</th><th>Qtd</th><th>Valor Unit.</th><th>Subtotal</th>");
+        sb.append("<th>Produto</th><th>Tam.</th><th>Qtd</th><th style='text-align: center;'>Unit. (R$)</th><th style='text-align: center;'>Tot. (R$)</th>");
         sb.append("</tr></thead><tbody>");
 
-        for (PedidoProduto item : pedido.getProdutos()) {
+        java.util.List<PedidoProduto> produtos = new java.util.ArrayList<>(pedido.getProdutos());
+        produtos.sort(java.util.Comparator
+                .comparing((PedidoProduto p) -> p.getProduto().getNome().toLowerCase())
+                .thenComparing(p -> p.getProduto().getTamanho())
+                .thenComparing(p -> p.getValor()));
+
+        for (PedidoProduto item : produtos) {
             double subtotal = item.getValor().doubleValue() * item.getQuantidade().doubleValue();
+            
+            String valorUnitStr = String.format("%.2f", item.getValor().doubleValue()).replace(".", ",");
+            String subtotalStr = String.format("%.2f", subtotal).replace(".", ",");
+            
+            String[] vUnitParts = valorUnitStr.split(",");
+            String[] vTotalParts = subtotalStr.split(",");
+
+            String tamFormatado = "-";
+            if (item.getProduto().getTamanho() != null) {
+                tamFormatado = String.format("%02dcm", item.getProduto().getTamanho());
+            }
+
             sb.append("<tr>");
-            sb.append("<td>").append(item.getProduto().getNome()).append("</td>");
-            sb.append("<td>").append(item.getProduto().getTamanho() != null ? item.getProduto().getTamanho() : "-").append("</td>");
-            sb.append("<td style='text-align: center;'>").append(item.getQuantidade()).append("</td>");
-            sb.append("<td style='text-align: right;'>R$ ").append(String.format("%.2f", item.getValor().doubleValue())).append("</td>");
-            sb.append("<td style='text-align: right;'>R$ ").append(String.format("%.2f", subtotal)).append("</td>");
+            sb.append("<td style='padding: 5px;'>").append(item.getProduto().getNome()).append("</td>");
+            sb.append("<td style='text-align: center; padding: 5px;'>").append(tamFormatado).append("</td>");
+            sb.append("<td style='text-align: center; padding: 5px;'>").append(item.getQuantidade()).append("</td>");
+            
+            // Valor Unitário (Alinhamento decimal via sub-tabela invisível, alinhado à esquerda do TD pai)
+            sb.append("<td style='padding: 0; text-align: left;'>");
+            sb.append("<table style='border: none; border-collapse: collapse; font-family: Arial, sans-serif;'>");
+            sb.append("<tr><td style='border: none; padding: 5px 0 5px 5px; text-align: right; width: 45px;'>").append(vUnitParts[0]).append("</td>");
+            sb.append("<td style='border: none; padding: 5px 5px 5px 0; text-align: left; width: 25px;'>,").append(vUnitParts[1]).append("</td>");
+            sb.append("</tr></table></td>");
+
+            // Subtotal (Alinhamento decimal via sub-tabela invisível, alinhado à esquerda do TD pai)
+            sb.append("<td style='padding: 0; text-align: left;'>");
+            sb.append("<table style='border: none; border-collapse: collapse; font-family: Arial, sans-serif;'>");
+            sb.append("<tr><td style='border: none; padding: 5px 0 5px 5px; text-align: right; width: 45px;'>").append(vTotalParts[0]).append("</td>");
+            sb.append("<td style='border: none; padding: 5px 5px 5px 0; text-align: left; width: 25px;'>,").append(vTotalParts[1]).append("</td>");
+            sb.append("</tr></table></td>");
+            
             sb.append("</tr>");
         }
 
@@ -101,7 +132,7 @@ public class EmailService {
 
         sb.append("<div style='margin-top: 20px;'>");
         sb.append("<p><strong>Frete:</strong> R$ ").append(String.format("%.2f", pedido.getFrete().doubleValue())).append("</p>");
-        sb.append("<p><strong>Desconto:</strong> R$ ").append(String.format("%.2f", pedido.getDesconto().doubleValue())).append("</p>");
+        sb.append("<p><strong>Desconto:</strong> ").append(String.format("%.2f", pedido.getDesconto().doubleValue())).append("%</p>");
         sb.append("<p style='font-size: 1.2em;'><strong>Valor Total:</strong> R$ ").append(String.format("%.2f", pedido.getValorTotal().doubleValue())).append("</p>");
         sb.append("</div>");
 

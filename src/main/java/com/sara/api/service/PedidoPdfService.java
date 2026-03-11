@@ -129,7 +129,13 @@ public class PedidoPdfService {
         addCell(table, "V. Unitário", boldFont, Color.LIGHT_GRAY);
         addCell(table, "Total", boldFont, Color.LIGHT_GRAY);
 
-        for (PedidoProduto item : pedido.getProdutos()) {
+        java.util.List<PedidoProduto> produtos = new java.util.ArrayList<>(pedido.getProdutos());
+        produtos.sort(java.util.Comparator
+                .comparing((PedidoProduto p) -> p.getProduto().getNome().toLowerCase())
+                .thenComparing(p -> p.getProduto().getTamanho())
+                .thenComparing(p -> p.getValor()));
+
+        for (PedidoProduto item : produtos) {
             addCell(table, item.getProduto().getNome(), normalFont, null);
             addCell(table, String.valueOf(item.getProduto().getTamanho()), normalFont, null);
             addCell(table, String.valueOf(item.getQuantidade()), normalFont, null);
