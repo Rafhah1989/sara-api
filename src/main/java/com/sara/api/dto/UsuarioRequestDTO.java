@@ -29,6 +29,9 @@ public class UsuarioRequestDTO {
     @Schema(description = "CPF ou CNPJ do usuário", example = "12345678901")
     private String cpfCnpj;
 
+    @Schema(description = "E-mail do usuário", example = "usuario@exemplo.com")
+    private String email;
+
     @Schema(description = "Telefone de contato", example = "(11) 98888-7777")
     private String telefone;
 

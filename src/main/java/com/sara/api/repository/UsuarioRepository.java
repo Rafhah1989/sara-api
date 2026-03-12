@@ -12,5 +12,6 @@ import java.util.Optional;
 public interface UsuarioRepository extends JpaRepository<Usuario, Long> {
     List<Usuario> findByNomeContainingIgnoreCase(String nome);
     Optional<Usuario> findByCpfCnpj(String cpfCnpj);
+    Optional<Usuario> findByToken(String token);
     long countByRoleAndAtivoTrue(Role role);
 }

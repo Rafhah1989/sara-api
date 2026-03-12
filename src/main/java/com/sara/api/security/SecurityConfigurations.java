@@ -41,6 +41,8 @@ public class SecurityConfigurations {
                     req.requestMatchers(HttpMethod.GET, "/api/usuarios/{id}").authenticated();
                     req.requestMatchers(HttpMethod.GET, "/api/formas-pagamento", "/api/formas-pagamento/**").authenticated();
                     req.requestMatchers(HttpMethod.GET, "/api/situacoes-pedido").authenticated();
+                    req.requestMatchers(HttpMethod.POST, "/api/usuarios/validate-token").permitAll();
+                    req.requestMatchers(HttpMethod.POST, "/api/usuarios/reset-password").permitAll();
                     req.requestMatchers("/api/configuracao/**").hasRole("ADMIN");
                     req.anyRequest().hasRole("ADMIN");
                 })

@@ -1,0 +1,2 @@
+ALTER TABLE usuario ADD COLUMN token VARCHAR(255);
+ALTER TABLE usuario ADD COLUMN data_expiracao TIMESTAMP;

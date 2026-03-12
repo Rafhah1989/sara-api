@@ -10,18 +10,25 @@ import com.sara.api.repository.TabelaFreteRepository;
 import com.sara.api.repository.FormaPagamentoRepository;
 import com.sara.api.validator.UsuarioValidator;
 import com.sara.api.exception.ValidationException;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.BeanUtils;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
+import java.security.SecureRandom;
+import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Optional;
+import java.util.UUID;
 import java.util.stream.Collectors;
 
 @Service
+@Slf4j
 public class UsuarioService {
 
     @Autowired
@@ -39,13 +46,63 @@ public class UsuarioService {
     @Autowired
     private FormaPagamentoRepository formaPagamentoRepository;
 
+    @Autowired
+    private EmailService emailService;
+
+    @Value("${URL_BASE:http://localhost:4200}")
+    private String urlBase;
+
+    @Transactional
     public UsuarioResponseDTO criar(UsuarioRequestDTO request) {
         usuarioValidator.validar(request, true);
         Usuario usuario = new Usuario();
         updateUsuarioFromDTO(request, usuario);
-        usuario.setSenha(convertToMD5(request.getSenha()));
+        
+        boolean enviarEmailCertificacao = false;
+        String senhaAleatoria = null;
+        
+        if (request.getSenha() == null || request.getSenha().trim().isEmpty()) {
+            senhaAleatoria = gerarSenhaAleatoria();
+            usuario.setSenha(convertToMD5(senhaAleatoria));
+            usuario.setToken(UUID.randomUUID().toString());
+            usuario.setDataExpiracao(LocalDateTime.now().plusHours(24));
+            enviarEmailCertificacao = true;
+        } else {
+            usuario.setSenha(convertToMD5(request.getSenha()));
+        }
+        
         usuario.setAtivo(true);
-        return toDTO(usuarioRepository.save(usuario));
+        Usuario saved = usuarioRepository.save(usuario);
+        
+        if (enviarEmailCertificacao) {
+            enviarEmailConvite(saved, senhaAleatoria);
+        }
+        
+        return toDTO(saved);
+    }
+
+    private String gerarSenhaAleatoria() {
+        SecureRandom random = new SecureRandom();
+        int num = 100000 + random.nextInt(900000);
+        return String.valueOf(num);
+    }
+
+    private void enviarEmailConvite(Usuario usuario, String senhaProvisoria) {
+        String link = String.format("%s/reset-password?token=%s", urlBase, usuario.getToken());
+        String subject = "Bem-vindo ao Sistema Sara - Sua conta foi criada";
+        
+        StringBuilder sb = new StringBuilder();
+        sb.append("<h1>Conta Criada com Sucesso!</h1>");
+        sb.append("<p>Sua conta no Sistema Sara foi criada pelo administrador.</p>");
+        sb.append("<p><strong>Login:</strong> ").append(usuario.getCpfCnpj()).append("</p>");
+        sb.append("<p><strong>Senha Provisória:</strong> ").append(senhaProvisoria).append("</p>");
+        sb.append("<p>Para sua segurança, solicitamos que altere sua senha clicando no link abaixo:</p>");
+        sb.append("<p><a href='").append(link).append("'>Definir Nova Senha</a></p>");
+        sb.append("<p><small>Este link é válido por 24 horas.</small></p>");
+        
+        // Vamos usar o EmailService já existente
+        emailService.enviarEmailGenerico(usuario.getEmail(), subject, sb.toString());
+        log.info("E-mail de convite enviado para {}. Link: {}", usuario.getEmail(), link);
     }
 
     public UsuarioResponseDTO alterar(Long id, UsuarioRequestDTO request) {
@@ -135,6 +192,46 @@ public class UsuarioService {
         } catch (NoSuchAlgorithmException e) {
             throw new RuntimeException("Erro ao converter senha para MD5", e);
         }
+    }
+
+    @Transactional
+    public void redefinirSenha(String token, String novaSenha) {
+        Usuario usuario = usuarioRepository.findByToken(token)
+                .orElseThrow(() -> new ValidationException("Token inválido", HttpStatus.NOT_FOUND));
+
+        if (usuario.getDataExpiracao().isBefore(LocalDateTime.now())) {
+            throw new ValidationException("Token expirado. Entre em contato com o administrador.", HttpStatus.BAD_REQUEST);
+        }
+
+        usuario.setSenha(convertToMD5(novaSenha));
+        usuario.setToken(null);
+        usuario.setDataExpiracao(null);
+        usuarioRepository.save(usuario);
+    }
+
+    public UsuarioResponseDTO validarToken(String token) {
+        Usuario usuario = usuarioRepository.findByToken(token)
+                .orElseThrow(() -> new ValidationException("Token inválido", HttpStatus.NOT_FOUND));
+
+        if (usuario.getDataExpiracao().isBefore(LocalDateTime.now())) {
+            throw new ValidationException("Token expirado", HttpStatus.BAD_REQUEST);
+        }
+
+        return toDTO(usuario);
+    }
+
+    @Transactional
+    public void reenviarEmailConvite(Long id) {
+        Usuario usuario = usuarioRepository.findById(id)
+                .orElseThrow(() -> new RuntimeException("Usuário não encontrado"));
+
+        String novaSenha = gerarSenhaAleatoria();
+        usuario.setSenha(convertToMD5(novaSenha));
+        usuario.setToken(UUID.randomUUID().toString());
+        usuario.setDataExpiracao(LocalDateTime.now().plusHours(24));
+        
+        Usuario saved = usuarioRepository.save(usuario);
+        enviarEmailConvite(saved, novaSenha);
     }
 
     private UsuarioResponseDTO toDTO(Usuario usuario) {

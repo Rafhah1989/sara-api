@@ -67,4 +67,28 @@ public class UsuarioController {
     public List<UsuarioResponseDTO> buscarPorNome(@PathVariable("nome") String nome) {
         return usuarioService.buscarPorNome(nome);
     }
+
+    @PostMapping("/reenviar-convite/{id}")
+    @Operation(summary = "Reenviar e-mail de convite", description = "Gera nova senha e token e reenvia o e-mail de boas-vindas")
+    public ResponseEntity<Void> reenviarEmailConvite(@PathVariable("id") Long id) {
+        usuarioService.reenviarEmailConvite(id);
+        return ResponseEntity.ok().build();
+    }
+
+    @PostMapping("/validate-token")
+    @Operation(summary = "Validar token de senha", description = "Verifica se um token de redefinição ainda é válido")
+    public ResponseEntity<UsuarioResponseDTO> validarToken(@RequestBody String token) {
+        // Remove aspas se o token vier como string JSON pura
+        token = token.replace("\"", ""); 
+        return ResponseEntity.ok(usuarioService.validarToken(token));
+    }
+
+    @PostMapping("/reset-password")
+    @Operation(summary = "Redefinir senha", description = "Altera a senha do usuário utilizando um token válido")
+    public ResponseEntity<Void> redefinirSenha(@RequestBody ResetPasswordRequest request) {
+        usuarioService.redefinirSenha(request.token(), request.novaSenha());
+        return ResponseEntity.ok().build();
+    }
+
+    public record ResetPasswordRequest(String token, String novaSenha) {}
 }

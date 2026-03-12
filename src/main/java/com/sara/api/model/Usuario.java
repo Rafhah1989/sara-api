@@ -39,6 +39,14 @@ public class Usuario implements UserDetails {
     @Column(nullable = false, length = 14)
     private String cpfCnpj;
 
+    @Column(nullable = false)
+    private String email;
+
+    private String token;
+
+    @Column(name = "data_expiracao")
+    private java.time.LocalDateTime dataExpiracao;
+
     @Column(length = 15)
     private String telefone;
 

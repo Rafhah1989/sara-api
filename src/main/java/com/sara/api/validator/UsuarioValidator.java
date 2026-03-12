@@ -34,10 +34,10 @@ public class UsuarioValidator {
     }
 
     private void validarSenha(String senha, boolean isCriacao) {
-        if (!isCriacao && (senha == null || senha.isEmpty())) {
+        if (senha == null || senha.isEmpty()) {
             return;
         }
-        if (senha == null || !senha.matches("\\d{6}")) {
+        if (!senha.matches("\\d{6}")) {
             throw new ValidationException("A senha deve conter seis números");
         }
     }

@@ -221,4 +221,44 @@ public class EmailService {
         sb.append("</tbody></table>");
         return sb.toString();
     }
+    @Async
+    @Retryable(value = Exception.class, maxAttempts = 3, backoff = @Backoff(delay = 5000))
+    public void enviarEmailGenerico(String destinatario, String assunto, String conteudoHtml) {
+        log.info("Iniciando envio de e-mail genérico para {}", destinatario);
+        
+        Configuracao config = configuracaoRepository.findAll().stream().findFirst().orElse(null);
+        if (config == null || !Boolean.TRUE.equals(config.getEmailAtivo())) {
+            log.info("Envio de e-mail desativado.");
+            return;
+        }
+
+        try {
+            JavaMailSenderImpl mailSender = new JavaMailSenderImpl();
+            mailSender.setHost(config.getMailHost());
+            mailSender.setPort(config.getMailPort());
+            mailSender.setUsername(config.getMailUsername());
+            mailSender.setPassword(config.getMailPassword());
+
+            Properties props = mailSender.getJavaMailProperties();
+            props.put("mail.transport.protocol", "smtp");
+            props.put("mail.smtp.auth", String.valueOf(config.getMailAuth()));
+            props.put("mail.smtp.starttls.enable", String.valueOf(config.getMailStarttls()));
+            props.put("mail.smtp.ssl.trust", config.getMailHost());
+            props.put("mail.debug", "false");
+
+            MimeMessage message = mailSender.createMimeMessage();
+            MimeMessageHelper helper = new MimeMessageHelper(message, true, "UTF-8");
+
+            helper.setSubject(assunto);
+            helper.setFrom(config.getMailUsername());
+            helper.setTo(destinatario);
+            helper.setText(conteudoHtml, true);
+
+            mailSender.send(message);
+            log.info("E-mail genérico enviado com sucesso para {}", destinatario);
+
+        } catch (Exception e) {
+            log.error("Erro ao enviar e-mail genérico para {}: {}", destinatario, e.getMessage());
+        }
+    }
 }

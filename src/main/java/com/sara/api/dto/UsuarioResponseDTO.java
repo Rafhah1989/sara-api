@@ -31,6 +31,9 @@ public class UsuarioResponseDTO {
     @Schema(description = "CPF ou CNPJ formatado", example = "123.456.789-01")
     private String cpfCnpj;
 
+    @Schema(description = "E-mail", example = "usuario@exemplo.com")
+    private String email;
+
     @Schema(description = "Telefone formatado", example = "(11) 98888-7777")
     private String telefone;
 
