@@ -15,6 +15,12 @@ import java.util.List;
 public interface PedidoRepository extends JpaRepository<Pedido, Long>, JpaSpecificationExecutor<Pedido> {
     List<Pedido> findByUsuarioId(Long usuarioId);
 
+    @Query("SELECT p FROM Pedido p " +
+            "LEFT JOIN FETCH p.produtos pp " +
+            "LEFT JOIN FETCH pp.produto " +
+            "WHERE p.id = :id")
+    java.util.Optional<Pedido> findByIdWithProdutos(@Param("id") Long id);
+
     @Query("SELECT p FROM Pedido p WHERE " +
             "(:id IS NULL OR p.id = :id) AND " +
             "(:clienteNome IS NULL OR UPPER(p.usuario.nome) LIKE :clienteNome) AND " +

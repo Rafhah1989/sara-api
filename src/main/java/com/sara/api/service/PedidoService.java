@@ -159,10 +159,14 @@ public class PedidoService {
 
         Pedido saved = pedidoRepository.save(pedido);
         
+        // Busca o pedido carregando todos os produtos e detalhes para evitar LazyInitializationException no e-mail assíncrono
+        Pedido savedCompleto = pedidoRepository.findByIdWithProdutos(saved.getId())
+                .orElseThrow(() -> new EntityNotFoundException("Pedido não encontrado após salvar"));
+
         // Dispara e-mail assíncrono para o novo pedido
-        emailService.enviarEmailNovoPedido(saved);
+        emailService.enviarEmailNovoPedido(savedCompleto);
         
-        return convertToResponseDTO(saved);
+        return convertToResponseDTO(savedCompleto);
     }
 
     @Transactional
@@ -193,6 +197,16 @@ public class PedidoService {
                 .orElseThrow(() -> new EntityNotFoundException("Pedido não encontrado"));
         pedido.setCancelado(true);
         pedidoRepository.save(pedido);
+
+        // Busca o pedido carregando todos os produtos e detalhes para evitar LazyInitializationException no e-mail assíncrono
+        Pedido pedidoCompleto = pedidoRepository.findByIdWithProdutos(id)
+                .orElseThrow(() -> new EntityNotFoundException("Pedido não encontrado após salvar"));
+
+        // Captura o usuário autenticado que está realizando o cancelamento
+        var auth = SecurityContextHolder.getContext().getAuthentication();
+        if (auth != null && auth.getPrincipal() instanceof Usuario responsavel) {
+            emailService.enviarEmailPedidoCancelado(pedidoCompleto, responsavel);
+        }
     }
 
     @Transactional
