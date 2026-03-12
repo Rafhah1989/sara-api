@@ -96,7 +96,7 @@ public class UsuarioService {
         sb.append("<p>Sua conta no Sistema Sara foi criada pelo administrador.</p>");
         sb.append("<p><strong>Login:</strong> ").append(usuario.getCpfCnpj()).append("</p>");
         sb.append("<p><strong>Senha Provisória:</strong> ").append(senhaProvisoria).append("</p>");
-        sb.append("<p>Para sua segurança, solicitamos que altere sua senha clicando no link abaixo:</p>");
+        sb.append("<p>Para sua segurança, recomendamos que altere sua senha clicando no link abaixo:</p>");
         sb.append("<p><a href='").append(link).append("'>Definir Nova Senha</a></p>");
         sb.append("<p><small>Este link é válido por 24 horas.</small></p>");
         
