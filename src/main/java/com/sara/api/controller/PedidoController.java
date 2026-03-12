@@ -80,8 +80,8 @@ public class PedidoController {
 
     @DeleteMapping("/{id}")
     @Operation(summary = "Cancela um pedido por ID", description = "Realiza a exclusão lógica do pedido (seta cancelado = true)")
-    public ResponseEntity<Void> cancelar(@PathVariable("id") Long id) {
-        pedidoService.cancel(id);
+    public ResponseEntity<Void> cancelar(@PathVariable("id") Long id, @RequestParam(required = false) String motivo) {
+        pedidoService.cancel(id, motivo);
         return ResponseEntity.noContent().build();
     }
 

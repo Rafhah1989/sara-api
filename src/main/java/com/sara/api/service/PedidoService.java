@@ -192,10 +192,17 @@ public class PedidoService {
     }
 
     @Transactional
-    public void cancel(Long id) {
+    public void cancel(Long id, String motivo) {
         Pedido pedido = pedidoRepository.findById(id)
                 .orElseThrow(() -> new EntityNotFoundException("Pedido não encontrado"));
         pedido.setCancelado(true);
+        
+        if (motivo != null && !motivo.trim().isEmpty()) {
+            String obsAtual = pedido.getObservacao() != null ? pedido.getObservacao() : "";
+            String novaObs = obsAtual + (obsAtual.isEmpty() ? "" : "\n") + "[MOTIVO CANCELAMENTO]: " + motivo;
+            pedido.setObservacao(novaObs);
+        }
+        
         pedidoRepository.save(pedido);
 
         // Busca o pedido carregando todos os produtos e detalhes para evitar LazyInitializationException no e-mail assíncrono
@@ -205,7 +212,7 @@ public class PedidoService {
         // Captura o usuário autenticado que está realizando o cancelamento
         var auth = SecurityContextHolder.getContext().getAuthentication();
         if (auth != null && auth.getPrincipal() instanceof Usuario responsavel) {
-            emailService.enviarEmailPedidoCancelado(pedidoCompleto, responsavel);
+            emailService.enviarEmailPedidoCancelado(pedidoCompleto, responsavel, motivo);
         }
     }
 

@@ -34,6 +34,8 @@ public class SecurityConfigurations {
                     req.requestMatchers(HttpMethod.OPTIONS, "/**").permitAll();
                     req.requestMatchers(HttpMethod.POST, "/api/login").permitAll();
                     req.requestMatchers(HttpMethod.POST, "/api/logout").permitAll();
+                    req.requestMatchers(HttpMethod.POST, "/api/forgot-password").permitAll();
+                    req.requestMatchers(HttpMethod.POST, "/api/reset-password").permitAll();
                     req.requestMatchers("/v3/api-docs/**", "/swagger-ui.html", "/swagger-ui/**").permitAll();
                     req.requestMatchers("/api/pedidos/**").authenticated();
                     req.requestMatchers("/api/carrinho/**").authenticated();

@@ -72,7 +72,7 @@ public class EmailService {
 
     @Async
     @Retryable(value = Exception.class, maxAttempts = 3, backoff = @Backoff(delay = 5000))
-    public void enviarEmailPedidoCancelado(Pedido pedido, com.sara.api.model.Usuario responsavel) {
+    public void enviarEmailPedidoCancelado(Pedido pedido, com.sara.api.model.Usuario responsavel, String motivo) {
         log.info("Iniciando tentativa de envio de e-mail de cancelamento para o pedido #{}", pedido.getId());
         
         Configuracao config = configuracaoRepository.findAll().stream().findFirst().orElse(null);
@@ -103,7 +103,7 @@ public class EmailService {
             helper.setFrom(config.getMailUsername());
             helper.setTo(config.getEmailsNotificacao().split(","));
 
-            String content = buildOrderCanceledEmailContent(pedido, responsavel);
+            String content = buildOrderCanceledEmailContent(pedido, responsavel, motivo);
             helper.setText(content, true);
 
             mailSender.send(message);
@@ -115,7 +115,7 @@ public class EmailService {
         }
     }
 
-    private String buildOrderCanceledEmailContent(Pedido pedido, com.sara.api.model.Usuario responsavel) {
+    private String buildOrderCanceledEmailContent(Pedido pedido, com.sara.api.model.Usuario responsavel, String motivo) {
         DateTimeFormatter formatter = DateTimeFormatter.ofPattern("dd/MM/yyyy HH:mm:ss");
         String dataCancelamento = LocalDateTime.now().format(formatter);
         String dataOriginal = pedido.getDataPedido().format(formatter);
@@ -128,6 +128,9 @@ public class EmailService {
         
         sb.append("<div style='border: 1px solid black; padding: 10px; margin: 15px 0; display: inline-block;'>");
         sb.append("<strong>Cancelado por: ").append(responsavel.getNome()).append(" em ").append(dataCancelamento).append("</strong>");
+        if (motivo != null && !motivo.trim().isEmpty()) {
+            sb.append("<br/><strong>Motivo: ").append(motivo).append("</strong>");
+        }
         sb.append("</div>");
 
         sb.append("<p><strong>Observação Orig.:</strong> ").append(pedido.getObservacao() != null ? pedido.getObservacao() : "-").append("</p>");

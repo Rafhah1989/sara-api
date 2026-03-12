@@ -199,14 +199,53 @@ public class UsuarioService {
         Usuario usuario = usuarioRepository.findByToken(token)
                 .orElseThrow(() -> new ValidationException("Token inválido", HttpStatus.NOT_FOUND));
 
-        if (usuario.getDataExpiracao().isBefore(LocalDateTime.now())) {
-            throw new ValidationException("Token expirado. Entre em contato com o administrador.", HttpStatus.BAD_REQUEST);
+        if (usuario.getDataExpiracao() == null || usuario.getDataExpiracao().isBefore(LocalDateTime.now())) {
+            throw new ValidationException("Token expirado. Solicite uma nova recuperação.", HttpStatus.BAD_REQUEST);
         }
 
         usuario.setSenha(convertToMD5(novaSenha));
         usuario.setToken(null);
         usuario.setDataExpiracao(null);
         usuarioRepository.save(usuario);
+    }
+
+    @Transactional
+    public void iniciarRecuperacaoSenha(String cpfCnpj) {
+        String cleanedCpfCnpj = cpfCnpj.replaceAll("\\D", "");
+        Optional<Usuario> usuarioOpt = usuarioRepository.findByCpfCnpj(cleanedCpfCnpj);
+        
+        if (usuarioOpt.isPresent()) {
+            Usuario usuario = usuarioOpt.get();
+            usuario.setToken(UUID.randomUUID().toString());
+            usuario.setDataExpiracao(LocalDateTime.now().plusHours(72));
+            usuarioRepository.save(usuario);
+            
+            enviarEmailRecuperacao(usuario);
+        } else {
+            log.warn("Tentativa de recuperação de senha para CPF/CNPJ não cadastrado: {}", cleanedCpfCnpj);
+        }
+    }
+
+    private void enviarEmailRecuperacao(Usuario usuario) {
+        String link = String.format("%s/reset-password?token=%s", urlBase, usuario.getToken());
+        String subject = "Recuperação de Senha - Sistema Sara";
+        
+        StringBuilder sb = new StringBuilder();
+        sb.append("<div style='font-family: Arial, sans-serif; color: #333;'>");
+        sb.append("<h1 style='color: #c5a059;'>Recuperação de Senha</h1>");
+        sb.append("<p>Olá, <strong>").append(usuario.getNome()).append("</strong>.</p>");
+        sb.append("<p>Recebemos uma solicitação para alterar a senha da sua conta no Sistema Sara.</p>");
+        sb.append("<p>Para definir uma nova senha, clique no botão abaixo:</p>");
+        sb.append("<div style='margin: 30px 0;'>");
+        sb.append("<a href='").append(link).append("' style='background-color: #c5a059; color: white; padding: 12px 24px; text-decoration: none; border-radius: 4px; font-weight: bold;'>Alterar Minha Senha</a>");
+        sb.append("</div>");
+        sb.append("<p>Caso o botão não funcione, copie e cole o link abaixo no seu navegador:</p>");
+        sb.append("<p style='word-break: break-all; color: #666;'>").append(link).append("</p>");
+        sb.append("<p><small>Este link é válido por 72 horas. Se você não solicitou esta alteração, pode ignorar este e-mail com segurança.</small></p>");
+        sb.append("</div>");
+        
+        emailService.enviarEmailGenerico(usuario.getEmail(), subject, sb.toString());
+        log.info("E-mail de recuperação enviado para {}. Link: {}", usuario.getEmail(), link);
     }
 
     public UsuarioResponseDTO validarToken(String token) {
