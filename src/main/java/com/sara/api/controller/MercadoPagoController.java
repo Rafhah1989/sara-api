@@ -1,11 +1,13 @@
 package com.sara.api.controller;
 
+import com.sara.api.exception.ValidationException;
 import com.sara.api.model.Pedido;
 import com.sara.api.repository.PedidoRepository;
 import com.sara.api.service.MercadoPagoService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import lombok.RequiredArgsConstructor;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
@@ -39,7 +41,7 @@ public class MercadoPagoController {
     @Operation(summary = "Verificação manual de pagamento", description = "Consulta o status do pagamento no Mercado Pago e atualiza o pedido")
     public ResponseEntity<Map<String, Object>> verificarManual(@PathVariable Long idPedido) {
         Pedido pedido = pedidoRepository.findById(idPedido)
-                .orElseThrow(() -> new RuntimeException("Pedido não encontrado"));
+                .orElseThrow(() -> new ValidationException("Pedido não encontrado", HttpStatus.NOT_FOUND));
 
         if (pedido.getMercadopagoPagamentoId() == null) {
             Map<String, Object> error = new HashMap<>();
