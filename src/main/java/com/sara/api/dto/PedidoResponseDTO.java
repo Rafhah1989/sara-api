@@ -49,6 +49,18 @@ public class PedidoResponseDTO {
     @Schema(description = "Data e hora da criação do pedido", example = "2023-10-27T10:15:30")
     private LocalDateTime dataPedido;
 
+    @Schema(description = "Indica se o pedido já foi pago", example = "false")
+    private Boolean pago;
+
+    @Schema(description = "Código PIX copia e cola", example = "0002010102122687...")
+    private String pixCopiaECola;
+
+    @Schema(description = "QR Code do PIX base64", example = "iVBORw0KGgoAAAANSUhEUgA...")
+    private String pixQrCode;
+
+    @Schema(description = "ID do pagamento no Mercado Pago", example = "123456789")
+    private String mercadopagoPagamentoId;
+
     @Schema(description = "Lista detalhada dos produtos no pedido")
     private List<PedidoProdutoResponseDTO> produtos;
 }

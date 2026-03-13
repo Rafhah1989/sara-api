@@ -30,6 +30,7 @@ public class PedidoService {
     private final ProdutoRepository produtoRepository;
     private final FormaPagamentoRepository formaPagamentoRepository;
     private final EmailService emailService;
+    private final MercadoPagoService mercadoPagoService;
 
     public PedidoResponseDTO findById(Long id) {
         return convertToResponseDTO(getPedidoEntity(id));
@@ -158,6 +159,26 @@ public class PedidoService {
         }
 
         Pedido saved = pedidoRepository.save(pedido);
+
+        // Se for PIX, cria o pagamento no Mercado Pago
+        if (saved.getFormaPagamento() != null && "PIX".equalsIgnoreCase(saved.getFormaPagamento().getDescricao())) {
+            try {
+                com.mercadopago.resources.payment.Payment mpPayment = mercadoPagoService.criarPagamentoPix(saved);
+                saved.setMercadopagoPagamentoId(mpPayment.getId().toString());
+                saved.setPago(false);
+                
+                if (mpPayment.getPointOfInteraction() != null && 
+                    mpPayment.getPointOfInteraction().getTransactionData() != null) {
+                    saved.setPixCopiaECola(mpPayment.getPointOfInteraction().getTransactionData().getQrCode());
+                    saved.setPixQrCode(mpPayment.getPointOfInteraction().getTransactionData().getQrCodeBase64());
+                }
+                
+                saved = pedidoRepository.save(saved);
+            } catch (Exception e) {
+                // Em produção seria melhor tratar o erro ou fazer retry, aqui vamos apenas logar ou setar um status de erro
+                System.err.println("Erro ao criar pagamento Mercado Pago: " + e.getMessage());
+            }
+        }
         
         // Busca o pedido carregando todos os produtos e detalhes para evitar LazyInitializationException no e-mail assíncrono
         Pedido savedCompleto = pedidoRepository.findByIdWithProdutos(saved.getId())
@@ -234,6 +255,10 @@ public class PedidoService {
             pedido.setSituacao(request.getSituacao());
         }
 
+        if (request.getPago() != null) {
+            pedido.setPago(request.getPago());
+        }
+
         if (request.getFormaPagamentoId() != null) {
             pedido.setFormaPagamento(formaPagamentoRepository.findById(request.getFormaPagamentoId())
                     .orElseThrow(() -> new EntityNotFoundException("Forma de Pagamento não encontrada")));
@@ -275,6 +300,10 @@ public class PedidoService {
             response.setSituacaoDescricao(pedido.getSituacao().getDescricao());
         }
         response.setDataPedido(pedido.getDataPedido());
+        response.setPago(pedido.getPago());
+        response.setPixCopiaECola(pedido.getPixCopiaECola());
+        response.setPixQrCode(pedido.getPixQrCode());
+        response.setMercadopagoPagamentoId(pedido.getMercadopagoPagamentoId());
 
         if (pedido.getFormaPagamento() != null) {
             response.setFormaPagamentoId(pedido.getFormaPagamento().getId());

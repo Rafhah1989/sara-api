@@ -44,6 +44,17 @@ public class Pedido {
     @Enumerated(EnumType.STRING)
     @Column(nullable = false)
     private SituacaoPedido situacao = SituacaoPedido.PENDENTE;
+    
+    private Boolean pago = false;
+
+    @Column(name = "pix_copia_e_cola", columnDefinition = "TEXT")
+    private String pixCopiaECola;
+
+    @Column(name = "pix_qr_code", columnDefinition = "TEXT")
+    private String pixQrCode;
+
+    @Column(name = "mercadopago_pagamento_id", length = 100)
+    private String mercadopagoPagamentoId;
 
     @OneToMany(mappedBy = "pedido", cascade = CascadeType.ALL, orphanRemoval = true)
     private List<PedidoProduto> produtos = new ArrayList<>();

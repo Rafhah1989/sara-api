@@ -14,6 +14,7 @@ import java.util.List;
 @Repository
 public interface PedidoRepository extends JpaRepository<Pedido, Long>, JpaSpecificationExecutor<Pedido> {
     List<Pedido> findByUsuarioId(Long usuarioId);
+    java.util.Optional<Pedido> findByMercadopagoPagamentoId(String mercadopagoPagamentoId);
 
     @Query("SELECT p FROM Pedido p " +
             "LEFT JOIN FETCH p.produtos pp " +

@@ -24,6 +24,13 @@ public class SecurityFilter extends OncePerRequestFilter {
 
     @Override
     protected void doFilterInternal(HttpServletRequest request, HttpServletResponse response, FilterChain filterChain) throws ServletException, IOException {
+
+        String path = request.getRequestURI();
+        if (path.contains("/api/mercadopago/webhook")) {
+            filterChain.doFilter(request, response);
+            return;
+        }
+
         var tokenJWT = recuperarToken(request);
 
         if (tokenJWT != null) {

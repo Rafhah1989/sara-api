@@ -30,6 +30,9 @@ public class PedidoRequestDTO {
     @Schema(description = "Situação do pedido", example = "PENDENTE")
     private com.sara.api.model.SituacaoPedido situacao;
 
+    @Schema(description = "Indica se o pedido já foi pago", example = "false")
+    private Boolean pago;
+
     @Schema(description = "Lista de produtos e seus detalhes no pedido")
     private List<PedidoProdutoRequestDTO> produtos;
 }
