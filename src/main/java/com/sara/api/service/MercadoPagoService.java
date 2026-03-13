@@ -84,7 +84,7 @@ public class MercadoPagoService {
         }
     }
 
-    public void verificarStatusPagamento(String paymentId) {
+    public String verificarStatusPagamento(String paymentId) {
         try {
             System.out.println("Verificando status do pagamento: " + paymentId);
             Payment payment = buscarPagamento(paymentId);
@@ -100,8 +100,10 @@ public class MercadoPagoService {
             } else {
                 System.out.println("Status do pagamento: " + payment.getStatus());
             }
+            return payment.getStatus();
         } catch (Exception e) {
             System.err.println("Erro ao verificar status: " + e.getMessage());
+            return "Erro: " + e.getMessage();
         }
     }
 

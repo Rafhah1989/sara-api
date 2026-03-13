@@ -9,6 +9,7 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
+import java.util.HashMap;
 import java.util.Map;
 
 @RestController
@@ -36,18 +37,26 @@ public class MercadoPagoController {
 
     @PostMapping("/verificar-pagamento/{idPedido}")
     @Operation(summary = "Verificação manual de pagamento", description = "Consulta o status do pagamento no Mercado Pago e atualiza o pedido")
-    public ResponseEntity<String> verificarManual(@PathVariable Long idPedido) {
+    public ResponseEntity<Map<String, Object>> verificarManual(@PathVariable Long idPedido) {
         Pedido pedido = pedidoRepository.findById(idPedido)
                 .orElseThrow(() -> new RuntimeException("Pedido não encontrado"));
 
         if (pedido.getMercadopagoPagamentoId() == null) {
-            return ResponseEntity.badRequest().body("Pedido não possui ID de pagamento associado");
+            Map<String, Object> error = new HashMap<>();
+            error.put("error", "Pedido não possui ID de pagamento associado");
+            return ResponseEntity.badRequest().body(error);
         }
 
-        mercadoPagoService.verificarStatusPagamento(pedido.getMercadopagoPagamentoId());
+        String status = mercadoPagoService.verificarStatusPagamento(pedido.getMercadopagoPagamentoId());
         
         // Recarrega para ver o status atual
         pedido = pedidoRepository.findById(idPedido).get();
-        return ResponseEntity.ok(pedido.getPago() ? "Pago" : "Pendente/Cancelado");
+        
+        Map<String, Object> response = new HashMap<>();
+        response.put("idPedido", idPedido);
+        response.put("status", status);
+        response.put("pago", pedido.getPago());
+        
+        return ResponseEntity.ok(response);
     }
 }
