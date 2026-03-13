@@ -114,4 +114,10 @@ public class PedidoController {
 
         return new ResponseEntity<>(pdfBytes, headers, HttpStatus.OK);
     }
+
+    @PostMapping("/{id}/gerar-pix")
+    @Operation(summary = "Gera ou regenera o PIX do pedido", description = "Tenta gerar o pagamento no Mercado Pago caso ainda não exista ou tenha falhado.")
+    public ResponseEntity<PedidoResponseDTO> gerarPix(@PathVariable("id") Long id) {
+        return ResponseEntity.ok(pedidoService.gerarPagamentoPixManual(id));
+    }
 }

@@ -164,30 +164,8 @@ public class PedidoService {
             saved.setPagamentoOnline(false);
         }
 
-        // Se for PIX e estiver marcado para pagamento online, e o usuário estiver autorizado
-        boolean podePagarOnline = usuario.getMetodoPagamentoAutorizado() == MetodoPagamentoAutorizado.ENTREGA_E_ONLINE ||
-                                usuario.getMetodoPagamentoAutorizado() == MetodoPagamentoAutorizado.APENAS_ONLINE;
+        gerarPagamentoPixSeNecessario(saved);
 
-        if (Boolean.TRUE.equals(saved.getPagamentoOnline()) && podePagarOnline &&
-            saved.getFormaPagamento() != null && "PIX".equalsIgnoreCase(saved.getFormaPagamento().getDescricao())) {
-            try {
-                com.mercadopago.resources.payment.Payment mpPayment = mercadoPagoService.criarPagamentoPix(saved);
-                saved.setMercadopagoPagamentoId(mpPayment.getId().toString());
-                saved.setPago(false);
-                
-                if (mpPayment.getPointOfInteraction() != null && 
-                    mpPayment.getPointOfInteraction().getTransactionData() != null) {
-                    saved.setPixCopiaECola(mpPayment.getPointOfInteraction().getTransactionData().getQrCode());
-                    saved.setPixQrCode(mpPayment.getPointOfInteraction().getTransactionData().getQrCodeBase64());
-                }
-                
-                saved = pedidoRepository.save(saved);
-            } catch (Exception e) {
-                // Em produção seria melhor tratar o erro ou fazer retry, aqui vamos apenas logar ou setar um status de erro
-                System.err.println("Erro ao criar pagamento Mercado Pago: " + e.getMessage());
-            }
-        }
-        
         // Busca o pedido carregando todos os produtos e detalhes para evitar LazyInitializationException no e-mail assíncrono
         Pedido savedCompleto = pedidoRepository.findByIdWithProdutos(saved.getId())
                 .orElseThrow(() -> new EntityNotFoundException("Pedido não encontrado após salvar"));
@@ -346,5 +324,46 @@ public class PedidoService {
                 .orElseThrow(() -> new EntityNotFoundException("Pedido não encontrado"));
         pedido.setPago(pago);
         pedidoRepository.save(pedido);
+    }
+
+    @Transactional
+    public PedidoResponseDTO gerarPagamentoPixManual(Long id) {
+        Pedido pedido = pedidoRepository.findById(id)
+                .orElseThrow(() -> new EntityNotFoundException("Pedido não encontrado"));
+        
+        gerarPagamentoPixSeNecessario(pedido);
+        
+        return convertToResponseDTO(pedido);
+    }
+
+    private void gerarPagamentoPixSeNecessario(Pedido pedido) {
+        Usuario usuario = pedido.getUsuario();
+        
+        // Se for PIX e estiver marcado para pagamento online, e o usuário estiver autorizado
+        boolean podePagarOnline = usuario.getMetodoPagamentoAutorizado() == MetodoPagamentoAutorizado.ENTREGA_E_ONLINE ||
+                                usuario.getMetodoPagamentoAutorizado() == MetodoPagamentoAutorizado.APENAS_ONLINE;
+
+        if (Boolean.TRUE.equals(pedido.getPagamentoOnline()) && podePagarOnline &&
+            pedido.getFormaPagamento() != null && "PIX".equalsIgnoreCase(pedido.getFormaPagamento().getDescricao())) {
+            
+            // Só gera se ainda não tiver ID de pagamento ou se os dados do QR Code estiverem faltando
+            if (pedido.getMercadopagoPagamentoId() == null || pedido.getPixQrCode() == null) {
+                try {
+                    com.mercadopago.resources.payment.Payment mpPayment = mercadoPagoService.criarPagamentoPix(pedido);
+                    pedido.setMercadopagoPagamentoId(mpPayment.getId().toString());
+                    pedido.setPago(false);
+                    
+                    if (mpPayment.getPointOfInteraction() != null && 
+                        mpPayment.getPointOfInteraction().getTransactionData() != null) {
+                        pedido.setPixCopiaECola(mpPayment.getPointOfInteraction().getTransactionData().getQrCode());
+                        pedido.setPixQrCode(mpPayment.getPointOfInteraction().getTransactionData().getQrCodeBase64());
+                    }
+                    
+                    pedidoRepository.save(pedido);
+                } catch (Exception e) {
+                    System.err.println("Erro ao criar pagamento Mercado Pago: " + e.getMessage());
+                }
+            }
+        }
     }
 }
