@@ -160,8 +160,16 @@ public class PedidoService {
 
         Pedido saved = pedidoRepository.save(pedido);
 
-        // Se for PIX, cria o pagamento no Mercado Pago
-        if (saved.getFormaPagamento() != null && "PIX".equalsIgnoreCase(saved.getFormaPagamento().getDescricao())) {
+        if (saved.getPagamentoOnline() == null) {
+            saved.setPagamentoOnline(false);
+        }
+
+        // Se for PIX e estiver marcado para pagamento online, e o usuário estiver autorizado
+        boolean podePagarOnline = usuario.getMetodoPagamentoAutorizado() == MetodoPagamentoAutorizado.ENTREGA_E_ONLINE ||
+                                usuario.getMetodoPagamentoAutorizado() == MetodoPagamentoAutorizado.APENAS_ONLINE;
+
+        if (Boolean.TRUE.equals(saved.getPagamentoOnline()) && podePagarOnline &&
+            saved.getFormaPagamento() != null && "PIX".equalsIgnoreCase(saved.getFormaPagamento().getDescricao())) {
             try {
                 com.mercadopago.resources.payment.Payment mpPayment = mercadoPagoService.criarPagamentoPix(saved);
                 saved.setMercadopagoPagamentoId(mpPayment.getId().toString());
@@ -259,6 +267,10 @@ public class PedidoService {
             pedido.setPago(request.getPago());
         }
 
+        if (request.getPagamentoOnline() != null) {
+            pedido.setPagamentoOnline(request.getPagamentoOnline());
+        }
+
         if (request.getFormaPagamentoId() != null) {
             pedido.setFormaPagamento(formaPagamentoRepository.findById(request.getFormaPagamentoId())
                     .orElseThrow(() -> new EntityNotFoundException("Forma de Pagamento não encontrada")));
@@ -304,6 +316,7 @@ public class PedidoService {
         response.setPixCopiaECola(pedido.getPixCopiaECola());
         response.setPixQrCode(pedido.getPixQrCode());
         response.setMercadopagoPagamentoId(pedido.getMercadopagoPagamentoId());
+        response.setPagamentoOnline(pedido.getPagamentoOnline());
 
         if (pedido.getFormaPagamento() != null) {
             response.setFormaPagamentoId(pedido.getFormaPagamento().getId());
@@ -326,5 +339,12 @@ public class PedidoService {
         }).collect(Collectors.toList()));
 
         return response;
+    }
+
+    public void alterarStatusPago(Long id, Boolean pago) {
+        Pedido pedido = pedidoRepository.findById(id)
+                .orElseThrow(() -> new EntityNotFoundException("Pedido não encontrado"));
+        pedido.setPago(pago);
+        pedidoRepository.save(pedido);
     }
 }

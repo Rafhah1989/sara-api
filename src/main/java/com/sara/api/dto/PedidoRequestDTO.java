@@ -33,6 +33,9 @@ public class PedidoRequestDTO {
     @Schema(description = "Indica se o pedido já foi pago", example = "false")
     private Boolean pago;
 
+    @Schema(description = "Indica se o pagamento será feito online", example = "true")
+    private Boolean pagamentoOnline;
+
     @Schema(description = "Lista de produtos e seus detalhes no pedido")
     private List<PedidoProdutoRequestDTO> produtos;
 }

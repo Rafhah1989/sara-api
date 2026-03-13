@@ -56,6 +56,9 @@ public class Pedido {
     @Column(name = "mercadopago_pagamento_id", length = 100)
     private String mercadopagoPagamentoId;
 
+    @Column(name = "pagamento_online")
+    private Boolean pagamentoOnline = false;
+
     @OneToMany(mappedBy = "pedido", cascade = CascadeType.ALL, orphanRemoval = true)
     private List<PedidoProduto> produtos = new ArrayList<>();
 

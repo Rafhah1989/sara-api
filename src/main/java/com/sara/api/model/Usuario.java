@@ -82,6 +82,10 @@ public class Usuario implements UserDetails {
     @JoinColumn(name = "tabela_frete_id")
     private TabelaFrete tabelaFrete;
 
+    @Enumerated(EnumType.STRING)
+    @Column(name = "metodo_pagamento_autorizado", nullable = false)
+    private MetodoPagamentoAutorizado metodoPagamentoAutorizado = MetodoPagamentoAutorizado.APENAS_NA_ENTREGA;
+
     @Column(nullable = false, length = 32)
     private String senha;
 

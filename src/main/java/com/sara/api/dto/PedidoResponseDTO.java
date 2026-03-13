@@ -61,6 +61,9 @@ public class PedidoResponseDTO {
     @Schema(description = "ID do pagamento no Mercado Pago", example = "123456789")
     private String mercadopagoPagamentoId;
 
+    @Schema(description = "Indica se o pagamento será feito online", example = "true")
+    private Boolean pagamentoOnline;
+
     @Schema(description = "Lista detalhada dos produtos no pedido")
     private List<PedidoProdutoResponseDTO> produtos;
 }

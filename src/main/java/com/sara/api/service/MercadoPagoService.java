@@ -25,6 +25,9 @@ public class MercadoPagoService {
     @Value("${MP_ACCESS_TOKEN}")
     private String accessToken;
 
+    @Value("${URL_WEBHOOK:http://localhost:8080}")
+    private String urlWebhook;
+
     @Autowired
     private PedidoRepository pedidoRepository;
 
@@ -111,7 +114,7 @@ public class MercadoPagoService {
                 .description("Pedido #" + pedido.getId() + " - Sara System")
                 .transactionAmount(pedido.getValorTotal())
                 .paymentMethodId("pix")
-                .notificationUrl("https://iciest-unentertainable-brent.ngrok-free.dev/api/mercadopago/webhook") // Placeholder, deve ser configurável ou vir de env
+                .notificationUrl(urlWebhook) // Placeholder, deve ser configurável ou vir de env
                 .payer(PaymentPayerRequest.builder()
                         .email(user.getEmail())
                         .firstName(user.getNome())

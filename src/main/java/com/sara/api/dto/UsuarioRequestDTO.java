@@ -70,4 +70,7 @@ public class UsuarioRequestDTO {
 
     @Schema(description = "Senha de acesso (6 dígitos numéricos)", example = "123456")
     private String senha;
+
+    @Schema(description = "Método de pagamento autorizado para o usuário", example = "APENAS_NA_ENTREGA")
+    private com.sara.api.model.MetodoPagamentoAutorizado metodoPagamentoAutorizado;
 }

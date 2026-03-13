@@ -75,4 +75,7 @@ public class UsuarioResponseDTO {
 
     @Schema(description = "Indica se o usuário está ativo no sistema", example = "true")
     private Boolean ativo;
+
+    @Schema(description = "Método de pagamento autorizado para o usuário", example = "APENAS_NA_ENTREGA")
+    private com.sara.api.model.MetodoPagamentoAutorizado metodoPagamentoAutorizado;
 }

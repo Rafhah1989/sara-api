@@ -93,6 +93,14 @@ public class PedidoController {
         return ResponseEntity.noContent().build();
     }
 
+    @PatchMapping("/{id}/status-pago")
+    @Operation(summary = "Altera o status de pagamento do pedido (ADMIN)", description = "Permite que um administrador altere se o pedido está pago ou não.")
+    @org.springframework.security.access.prepost.PreAuthorize("hasRole('ADMIN')")
+    public ResponseEntity<Void> alterarStatusPago(@PathVariable("id") Long id, @RequestBody Map<String, Boolean> payload) {
+        pedidoService.alterarStatusPago(id, payload.get("pago"));
+        return ResponseEntity.noContent().build();
+    }
+
     @GetMapping("/{id}/pdf")
     @Operation(summary = "Gera PDF do pedido", description = "Gera e retorna um arquivo PDF formatado com os dados do pedido")
     public ResponseEntity<byte[]> gerarPdf(@PathVariable("id") Long id) {
