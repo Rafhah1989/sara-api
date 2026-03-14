@@ -17,6 +17,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
+import java.time.OffsetDateTime;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.stream.Collectors;
@@ -295,6 +296,7 @@ public class PedidoService {
         response.setPixQrCode(pedido.getPixQrCode());
         response.setMercadopagoPagamentoId(pedido.getMercadopagoPagamentoId());
         response.setPagamentoOnline(pedido.getPagamentoOnline());
+        response.setDataExpiracaoPix(pedido.getDataExpiracaoPix());
 
         if (pedido.getFormaPagamento() != null) {
             response.setFormaPagamentoId(pedido.getFormaPagamento().getId());
@@ -346,12 +348,18 @@ public class PedidoService {
         if (Boolean.TRUE.equals(pedido.getPagamentoOnline()) && podePagarOnline &&
             pedido.getFormaPagamento() != null && "PIX".equalsIgnoreCase(pedido.getFormaPagamento().getDescricao())) {
             
-            // Só gera se ainda não tiver ID de pagamento ou se os dados do QR Code estiverem faltando
-            if (pedido.getMercadopagoPagamentoId() == null || pedido.getPixQrCode() == null) {
+            boolean expirado = pedido.getDataExpiracaoPix() != null && pedido.getDataExpiracaoPix().isBefore(OffsetDateTime.now());
+
+            // Só gera se ainda não tiver ID de pagamento ou se os dados do QR Code estiverem faltando, ou se estiver expirado
+            if (pedido.getMercadopagoPagamentoId() == null || pedido.getPixQrCode() == null || expirado) {
                 try {
                     com.mercadopago.resources.payment.Payment mpPayment = mercadoPagoService.criarPagamentoPix(pedido);
                     pedido.setMercadopagoPagamentoId(mpPayment.getId().toString());
                     pedido.setPago(false);
+                    
+                    if (mpPayment.getDateOfExpiration() != null) {
+                        pedido.setDataExpiracaoPix(mpPayment.getDateOfExpiration());
+                    }
                     
                     if (mpPayment.getPointOfInteraction() != null && 
                         mpPayment.getPointOfInteraction().getTransactionData() != null) {

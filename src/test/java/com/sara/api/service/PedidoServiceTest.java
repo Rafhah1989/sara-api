@@ -15,6 +15,8 @@ import org.springframework.security.core.context.SecurityContext;
 import org.springframework.security.core.context.SecurityContextHolder;
 
 import java.math.BigDecimal;
+import java.time.LocalDateTime;
+import java.time.OffsetDateTime;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Optional;
@@ -98,6 +100,7 @@ class PedidoServiceTest {
         pedidoSalvo.setId(123L);
         pedidoSalvo.setUsuario(usuario);
         pedidoSalvo.setProdutos(new ArrayList<>());
+        pedidoSalvo.setDataExpiracaoPix(OffsetDateTime.now().plusMinutes(15));
         
         when(pedidoRepository.save(any(Pedido.class))).thenReturn(pedidoSalvo);
         when(pedidoRepository.findByIdWithProdutos(123L)).thenReturn(Optional.of(pedidoSalvo));
@@ -108,8 +111,45 @@ class PedidoServiceTest {
         // THEN
         assertThat(response).isNotNull();
         assertThat(response.getId()).isEqualTo(123L);
+        assertThat(response.getDataExpiracaoPix()).isNotNull();
         verify(emailService).enviarEmailNovoPedido(any(Pedido.class));
         verify(pedidoRepository).save(any(Pedido.class));
+    }
+
+    @Test
+    @DisplayName("Deve regerar PIX quando estiver expirado")
+    void deveRegerarPixQuandoExpirado() {
+        // GIVEN
+        Pedido pedidoExpirado = createPedidoMock(1L);
+        pedidoExpirado.setDataExpiracaoPix(OffsetDateTime.now().minusMinutes(5)); // Expirado há 5 min
+        pedidoExpirado.setPagamentoOnline(true);
+        pedidoExpirado.setMercadopagoPagamentoId("old-id");
+        
+        FormaPagamento fp = new FormaPagamento();
+        fp.setDescricao("PIX");
+        pedidoExpirado.setFormaPagamento(fp);
+        
+        Usuario usuario = pedidoExpirado.getUsuario();
+        usuario.setMetodoPagamentoAutorizado(MetodoPagamentoAutorizado.APENAS_ONLINE);
+
+        when(pedidoRepository.findById(1L)).thenReturn(Optional.of(pedidoExpirado));
+
+        com.mercadopago.resources.payment.Payment mpPayment = mock(com.mercadopago.resources.payment.Payment.class);
+        when(mpPayment.getId()).thenReturn(999L);
+        when(mpPayment.getDateOfExpiration()).thenReturn(java.time.OffsetDateTime.now().plusMinutes(15));
+
+        try {
+            when(mercadoPagoService.criarPagamentoPix(any(Pedido.class))).thenReturn(mpPayment);
+        } catch (Exception e) {}
+
+        // WHEN
+        pedidoService.gerarPagamentoPixManual(1L);
+
+        // THEN
+        try {
+            verify(mercadoPagoService).criarPagamentoPix(pedidoExpirado);
+        } catch (Exception e) {}
+        assertThat(pedidoExpirado.getMercadopagoPagamentoId()).isEqualTo("999");
     }
 
     @Test

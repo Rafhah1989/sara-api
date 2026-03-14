@@ -12,6 +12,7 @@ import com.sara.api.model.Usuario;
 import com.sara.api.repository.PedidoRepository;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import jakarta.annotation.PostConstruct;
+import java.time.OffsetDateTime;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.scheduling.annotation.Async;
@@ -125,6 +126,7 @@ public class MercadoPagoService {
                                 .number(user.getCpfCnpj().replaceAll("\\D", ""))
                                 .build())
                         .build())
+                .dateOfExpiration(OffsetDateTime.now().plusMinutes(15))
                 .build();
 
         return client.create(request);

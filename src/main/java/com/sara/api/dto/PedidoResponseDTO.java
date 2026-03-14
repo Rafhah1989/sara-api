@@ -4,6 +4,7 @@ import io.swagger.v3.oas.annotations.media.Schema;
 import lombok.Data;
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
+import java.time.OffsetDateTime;
 import java.util.List;
 
 @Data
@@ -63,6 +64,9 @@ public class PedidoResponseDTO {
 
     @Schema(description = "Indica se o pagamento será feito online", example = "true")
     private Boolean pagamentoOnline;
+
+    @Schema(description = "Data de expiração do PIX", example = "2023-10-27T11:15:30Z")
+    private OffsetDateTime dataExpiracaoPix;
 
     @Schema(description = "Lista detalhada dos produtos no pedido")
     private List<PedidoProdutoResponseDTO> produtos;

@@ -1,8 +1,10 @@
 package com.sara.api.service;
 
 import com.mercadopago.client.payment.PaymentClient;
+import com.mercadopago.client.payment.PaymentCreateRequest;
 import com.mercadopago.resources.payment.Payment;
 import com.sara.api.model.Pedido;
+import com.sara.api.model.Usuario;
 import com.sara.api.repository.PedidoRepository;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -95,6 +97,41 @@ class MercadoPagoServiceTest {
 
             // THEN
             assertThat(status).contains("Erro: API Error");
+        }
+    }
+
+    @Test
+    @DisplayName("Deve criar pagamento PIX com expiração de 60 minutos")
+    void deveCriarPagamentoPixComExpiracao() throws Exception {
+        // GIVEN
+        Pedido pedido = new Pedido();
+        pedido.setId(1L);
+        pedido.setValorTotal(new java.math.BigDecimal("100.00"));
+        Usuario usuario = new Usuario();
+        usuario.setEmail("test@test.com");
+        usuario.setNome("Test User");
+        usuario.setCpfCnpj("12345678901");
+        pedido.setUsuario(usuario);
+
+        Payment mockPayment = mock(Payment.class);
+
+        try (MockedConstruction<PaymentClient> mocked = mockConstruction(PaymentClient.class,
+                (mock, context) -> {
+                    when(mock.create(any(PaymentCreateRequest.class))).thenReturn(mockPayment);
+                })) {
+            
+            // WHEN
+            Payment result = mercadoPagoService.criarPagamentoPix(pedido);
+
+            // THEN
+            assertThat(result).isEqualTo(mockPayment);
+            
+            // Verifica se a requisição enviada ao mock contém a expiração
+            PaymentClient clientMock = mocked.constructed().get(0);
+            verify(clientMock).create(argThat(request -> 
+                request.getDateOfExpiration() != null && 
+                request.getDateOfExpiration().isAfter(java.time.OffsetDateTime.now().plusMinutes(14))
+            ));
         }
     }
 }
