@@ -165,6 +165,16 @@ public class PedidoService {
             saved.setPagamentoOnline(false);
         }
 
+        // Garante que se não for PIX, não pode ser online (dupla checagem)
+        if (Boolean.TRUE.equals(saved.getPagamentoOnline())) {
+            boolean isPix = saved.getFormaPagamento() != null && 
+                           "PIX".equalsIgnoreCase(saved.getFormaPagamento().getDescricao());
+            if (!isPix) {
+                saved.setPagamentoOnline(false);
+                pedidoRepository.save(saved);
+            }
+        }
+
         gerarPagamentoPixSeNecessario(saved);
 
         // Busca o pedido carregando todos os produtos e detalhes para evitar LazyInitializationException no e-mail assíncrono
@@ -246,15 +256,20 @@ public class PedidoService {
             pedido.setPago(request.getPago());
         }
 
-        if (request.getPagamentoOnline() != null) {
-            pedido.setPagamentoOnline(request.getPagamentoOnline());
+        if (request.getFormaPagamentoId() != null) {
+            FormaPagamento fp = formaPagamentoRepository.findById(request.getFormaPagamentoId())
+                    .orElseThrow(() -> new EntityNotFoundException("Forma de pagamento não encontrada"));
+            pedido.setFormaPagamento(fp);
         }
 
-        if (request.getFormaPagamentoId() != null) {
-            pedido.setFormaPagamento(formaPagamentoRepository.findById(request.getFormaPagamentoId())
-                    .orElseThrow(() -> new EntityNotFoundException("Forma de Pagamento não encontrada")));
-        } else {
-            pedido.setFormaPagamento(null);
+        if (request.getPagamentoOnline() != null) {
+            boolean isPix = false;
+            if (pedido.getFormaPagamento() != null) {
+                String desc = pedido.getFormaPagamento().getDescricao();
+                isPix = desc != null && desc.equalsIgnoreCase("PIX");
+            }
+            // Regra: Somente PIX pode ser online por enquanto
+            pedido.setPagamentoOnline(request.getPagamentoOnline() && isPix);
         }
     }
 

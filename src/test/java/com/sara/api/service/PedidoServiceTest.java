@@ -1,5 +1,7 @@
 package com.sara.api.service;
 
+import com.mercadopago.exceptions.MPApiException;
+import com.mercadopago.exceptions.MPException;
 import com.sara.api.dto.*;
 import com.sara.api.model.*;
 import com.sara.api.repository.*;
@@ -193,6 +195,48 @@ class PedidoServiceTest {
         TabelaFreteResponseDTO response = pedidoService.sugerirFrete(usuarioId);
 
         assertThat(response.getValor()).isEqualTo(new BigDecimal("25.50"));
+    }
+
+    @Test
+    @DisplayName("Não deve permitir pagamento online se a forma de pagamento não for PIX")
+    void deveNegarPagamentoOnlineSeNaoForPix() throws MPException, MPApiException {
+        // GIVEN
+        PedidoRequestDTO request = new PedidoRequestDTO();
+        request.setUsuarioId(1L);
+        request.setPagamentoOnline(true);
+        request.setFormaPagamentoId(2L); // 2 = DINHEIRO no nosso mock hipotético
+        request.setProdutos(new ArrayList<>());
+        request.setValorTotal(new BigDecimal("100.00"));
+
+        Usuario usuario = new Usuario();
+        usuario.setId(1L);
+        usuario.setMetodoPagamentoAutorizado(MetodoPagamentoAutorizado.APENAS_ONLINE);
+
+        FormaPagamento fpDinheiro = new FormaPagamento();
+        fpDinheiro.setId(2L);
+        fpDinheiro.setDescricao("DINHEIRO");
+
+        when(usuarioRepository.findById(1L)).thenReturn(Optional.of(usuario));
+        when(formaPagamentoRepository.findById(2L)).thenReturn(Optional.of(fpDinheiro));
+        
+        // Mock do save inicial
+        when(pedidoRepository.save(any(Pedido.class))).thenAnswer(invocation -> invocation.getArgument(0));
+        
+        // Mock do findByIdWithProdutos que é chamado no final do save
+        Pedido pedidoFinal = new Pedido();
+        pedidoFinal.setId(1L);
+        pedidoFinal.setUsuario(usuario);
+        pedidoFinal.setFormaPagamento(fpDinheiro);
+        // O valor esperado é FALSE porque não é PIX
+        pedidoFinal.setPagamentoOnline(false); 
+        when(pedidoRepository.findByIdWithProdutos(any())).thenReturn(Optional.of(pedidoFinal));
+
+        // WHEN
+        PedidoResponseDTO response = pedidoService.save(request);
+
+        // THEN
+        assertThat(response.getPagamentoOnline()).isFalse();
+        verify(mercadoPagoService, never()).criarPagamentoPix(any());
     }
 
     private Pedido createPedidoMock(Long id) {
