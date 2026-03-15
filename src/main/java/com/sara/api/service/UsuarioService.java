@@ -92,13 +92,20 @@ public class UsuarioService {
         String subject = "Bem-vindo ao Sistema Sara - Sua conta foi criada";
         
         StringBuilder sb = new StringBuilder();
-        sb.append("<h1>Conta Criada com Sucesso!</h1>");
+        sb.append("<div style='font-family: Arial, sans-serif; color: #333;'>");
+        sb.append("<h1 style='color: #c5a059;'>Conta Criada com Sucesso!</h1>");
+        sb.append("<p>Olá, <strong>").append(usuario.getNome()).append("</strong>.</p>");
         sb.append("<p>Sua conta no Sistema Sara foi criada pelo administrador.</p>");
-        sb.append("<p><strong>Login:</strong> ").append(usuario.getCpfCnpj()).append("</p>");
+        sb.append("<p><strong>Login (CPF/CNPJ):</strong> ").append(usuario.getCpfCnpj()).append("</p>");
         sb.append("<p><strong>Senha Provisória:</strong> ").append(senhaProvisoria).append("</p>");
-        sb.append("<p>Para sua segurança, recomendamos que altere sua senha clicando no link abaixo:</p>");
-        sb.append("<p><a href='").append(link).append("'>Definir Nova Senha</a></p>");
-        sb.append("<p><small>Este link é válido por 24 horas.</small></p>");
+        sb.append("<p>Para sua segurança, é necessário definir uma senha pessoal clicando no botão abaixo:</p>");
+        sb.append("<div style='margin: 30px 0;'>");
+        sb.append("<a href='").append(link).append("' style='background-color: #c5a059; color: white; padding: 12px 24px; text-decoration: none; border-radius: 4px; font-weight: bold;'>Definir Minha Senha</a>");
+        sb.append("</div>");
+        sb.append("<p>Caso o botão não funcione, copie e cole o link abaixo no seu navegador:</p>");
+        sb.append("<p style='word-break: break-all; color: #666;'>").append(link).append("</p>");
+        sb.append("<p><small>Este link é válido por 24 horas. Se você não reconhece esta ação, entre em contato com o suporte.</small></p>");
+        sb.append("</div>");
         
         // Vamos usar o EmailService já existente
         emailService.enviarEmailGenerico(usuario.getEmail(), subject, sb.toString());
