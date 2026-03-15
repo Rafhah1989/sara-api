@@ -25,8 +25,8 @@ public class CarrinhoResponseDTO {
     private Long produtoCodigo;
     @Schema(description = "Preço do Produto")
     private Double produtoPreco;
-    @Schema(description = "Imagem base64 do Produto")
-    private String produtoImagem;
+    @Schema(description = "Indica se o produto possui imagem")
+    private Boolean temImagem;
     @Schema(description = "Tamanho do Produto")
     private Integer produtoTamanho;
     @Schema(description = "Status Ativo do Produto")

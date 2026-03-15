@@ -328,7 +328,7 @@ public class PedidoService {
             itemDTO.setQuantidade(item.getQuantidade());
             itemDTO.setDesconto(item.getDesconto());
             itemDTO.setPeso(item.getPeso() != null ? item.getPeso().doubleValue() : 0.0);
-            itemDTO.setImagem(item.getProduto().getImagem());
+            itemDTO.setTemImagem(item.getProduto().getImagem() != null && !item.getProduto().getImagem().isEmpty());
             itemDTO.setTamanho(item.getProduto().getTamanho());
             return itemDTO;
         }).collect(Collectors.toList()));

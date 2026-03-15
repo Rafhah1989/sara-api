@@ -1,11 +1,16 @@
 package com.sara.api.controller;
 
+import com.sara.api.dto.ProdutoMiniDTO;
+import com.sara.api.dto.ProdutoResumoDTO;
 import com.sara.api.model.Produto;
 import com.sara.api.service.ProdutoPdfService;
 import com.sara.api.service.ProdutoService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.web.PageableDefault;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
@@ -42,8 +47,8 @@ public class ProdutoController {
 
     @GetMapping("/nome/{nome}")
     @Operation(summary = "Buscar por nome", description = "Retorna uma lista de produtos que contenham o nome informado")
-    public List<Produto> buscarPorNome(@PathVariable("nome") String nome) {
-        return produtoService.buscarPorNome(nome);
+    public List<ProdutoMiniDTO> buscarPorNome(@PathVariable("nome") String nome) {
+        return produtoService.buscarPorNomeMini(nome);
     }
 
     @GetMapping
@@ -53,19 +58,28 @@ public class ProdutoController {
     }
 
     @GetMapping("/ativos")
-    @Operation(summary = "Listar produtos ativos", description = "Retorna todos os produtos ativos")
-    public List<Produto> listarAtivos() {
-        return produtoService.listarAtivos();
+    @Operation(summary = "Listar produtos ativos (Mini)", description = "Retorna todos os produtos ativos sem a imagem Base64 para listagem rápida")
+    public List<ProdutoMiniDTO> listarAtivos() {
+        return produtoService.listarAtivosMini();
     }
 
     @GetMapping("/loja")
-    @Operation(summary = "Pesquisa da Loja Vitrine", description = "Filtro avançado por nome, tamanho e faixa de preço")
-    public List<Produto> buscarParaLoja(
+    @Operation(summary = "Pesquisa da Loja Vitrine (Paginada)", description = "Filtro avançado por nome, tamanho e faixa de preço com Lazy Loading")
+    public Page<ProdutoResumoDTO> buscarParaLoja(
             @RequestParam(required = false) String nome,
             @RequestParam(required = false) Integer tamanho,
             @RequestParam(required = false) Double precoMin,
-            @RequestParam(required = false) Double precoMax) {
-        return produtoService.buscarParaLoja(nome, tamanho, precoMin, precoMax);
+            @RequestParam(required = false) Double precoMax,
+            @PageableDefault(size = 30, sort = "nome") Pageable pageable) {
+        return produtoService.buscarParaLoja(nome, tamanho, precoMin, precoMax, pageable);
+    }
+
+    @GetMapping("/{id}")
+    @Operation(summary = "Buscar detalhe do produto", description = "Retorna o produto completo, incluindo a imagem Base64")
+    public ResponseEntity<Produto> buscarPorId(@PathVariable("id") Long id) {
+        return produtoService.buscarPorId(id)
+                .map(ResponseEntity::ok)
+                .orElse(ResponseEntity.notFound().build());
     }
 
     @GetMapping("/codigo/{codigo}")

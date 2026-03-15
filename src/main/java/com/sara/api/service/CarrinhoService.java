@@ -111,7 +111,7 @@ public class CarrinhoService {
         dto.setProdutoPreco(p.getPreco());
         dto.setProdutoAtivo(p.getAtivo());
         dto.setProdutoTamanho(p.getTamanho());
-        dto.setProdutoImagem(p.getImagem());
+        dto.setTemImagem(p.getImagem() != null && !p.getImagem().isEmpty());
         dto.setProdutoPeso(p.getPeso());
         dto.setQuantidade(carrinho.getQuantidade());
         

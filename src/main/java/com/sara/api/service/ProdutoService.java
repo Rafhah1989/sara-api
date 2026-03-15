@@ -1,10 +1,13 @@
 package com.sara.api.service;
 
+import com.sara.api.dto.ProdutoMiniDTO;
+import com.sara.api.dto.ProdutoResumoDTO;
 import com.sara.api.model.Produto;
 import com.sara.api.repository.ProdutoRepository;
 import com.sara.api.exception.ValidationException;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.domain.Specification;
 import org.springframework.stereotype.Service;
 
@@ -22,6 +25,10 @@ public class ProdutoService {
     public Produto salvar(Produto produto) {
         validar(produto);
         return produtoRepository.save(produto);
+    }
+
+    public List<ProdutoMiniDTO> buscarPorNomeMini(String nome) {
+        return produtoRepository.findByNomeMini(nome);
     }
 
     public List<Produto> buscarPorNome(String nome) {
@@ -70,7 +77,7 @@ public class ProdutoService {
         produtoRepository.deleteById(id);
     }
 
-    public List<Produto> buscarParaLoja(String nome, Integer tamanho, Double precoMin, Double precoMax) {
+    public Page<ProdutoResumoDTO> buscarParaLoja(String nome, Integer tamanho, Double precoMin, Double precoMax, Pageable pageable) {
         Specification<Produto> spec = (root, query, cb) -> {
             List<Predicate> predicates = new ArrayList<>();
             predicates.add(cb.isTrue(root.get("ativo")));
@@ -91,7 +98,11 @@ public class ProdutoService {
 
             return cb.and(predicates.toArray(new Predicate[0]));
         };
-        return produtoRepository.findAll(spec);
+        return produtoRepository.findAll(spec, pageable).map(ProdutoResumoDTO::new);
+    }
+
+    public List<ProdutoMiniDTO> listarAtivosMini() {
+        return produtoRepository.findAtivosMini();
     }
 
     public List<Produto> buscarOutrosTamanhos(Long id) {

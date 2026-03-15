@@ -32,8 +32,8 @@ public class PedidoProdutoResponseDTO {
     @Schema(description = "Peso no item", example = "1.50")
     private Double peso;
 
-    @Schema(description = "Imagem do produto (Base64)", example = "data:image/jpeg;base64,...")
-    private String imagem;
+    @Schema(description = "Indica se o produto possui imagem")
+    private Boolean temImagem;
 
     @Schema(description = "Tamanho do produto", example = "30")
     private Integer tamanho;
