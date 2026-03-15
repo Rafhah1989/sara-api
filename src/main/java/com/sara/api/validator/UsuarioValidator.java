@@ -37,8 +37,8 @@ public class UsuarioValidator {
         if (senha == null || senha.isEmpty()) {
             return;
         }
-        if (!senha.matches("\\d{6}")) {
-            throw new ValidationException("A senha deve conter seis números");
+        if (senha.length() < 6 || senha.length() > 30) {
+            throw new ValidationException("A senha deve ter entre 6 e 30 caracteres");
         }
     }
 
