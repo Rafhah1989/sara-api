@@ -98,6 +98,19 @@ public class ProdutoService {
 
             return cb.and(predicates.toArray(new Predicate[0]));
         };
+
+        // Garante que a ordenação seja estável adicionando nome e codigo como critérios secundários
+        org.springframework.data.domain.Sort stableSort = pageable.getSort();
+        if (stableSort.isSorted()) {
+            stableSort = stableSort.and(org.springframework.data.domain.Sort.by("nome").ascending())
+                                 .and(org.springframework.data.domain.Sort.by("codigo").ascending());
+        } else {
+            stableSort = org.springframework.data.domain.Sort.by("nome").ascending()
+                                 .and(org.springframework.data.domain.Sort.by("codigo").ascending());
+        }
+        
+        pageable = org.springframework.data.domain.PageRequest.of(pageable.getPageNumber(), pageable.getPageSize(), stableSort);
+
         return produtoRepository.findAll(spec, pageable).map(ProdutoResumoDTO::new);
     }
 

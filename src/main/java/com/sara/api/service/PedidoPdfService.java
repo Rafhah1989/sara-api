@@ -14,6 +14,7 @@ import java.awt.*;
 import java.io.ByteArrayOutputStream;
 import java.math.BigDecimal;
 import java.text.NumberFormat;
+import java.time.format.DateTimeFormatter;
 import java.util.Locale;
 
 @Service
@@ -82,9 +83,8 @@ public class PedidoPdfService {
 
         PdfPCell contactCell = new PdfPCell();
         contactCell.setBorder(Rectangle.NO_BORDER);
-        contactCell.addElement(new Paragraph("Sara - Artigos Religiosos", titleFont));
-        contactCell.addElement(new Paragraph("Contato: (00) 0000-0000", normalFont));
-        contactCell.addElement(new Paragraph("E-mail: contato@sara.com.br", normalFont));
+        contactCell.addElement(new Paragraph("Sara Imagens", titleFont));
+        contactCell.addElement(new Paragraph("E-mail: atendimento@saraimagens.com.br", normalFont));
         table.addCell(contactCell);
 
         document.add(table);
@@ -96,6 +96,14 @@ public class PedidoPdfService {
         Paragraph p = new Paragraph("PEDIDO #" + pedido.getId(), headerFont);
         p.setAlignment(Element.ALIGN_CENTER);
         document.add(p);
+
+        if (pedido.getDataPedido() != null) {
+            DateTimeFormatter formatter = DateTimeFormatter.ofPattern("dd/MM/yyyy HH:mm");
+            Paragraph pData = new Paragraph("Data: " + pedido.getDataPedido().format(formatter), boldFont);
+            pData.setAlignment(Element.ALIGN_CENTER);
+            document.add(pData);
+        }
+
         document.add(new Paragraph("\n"));
     }
 
@@ -117,17 +125,19 @@ public class PedidoPdfService {
 
     private void addProductTable(Document document, Pedido pedido) {
         PdfPTable table = new PdfPTable(5);
-        table.setWidthPercentage(100);
+        table.setWidthPercentage(65.5f);
+        table.setHorizontalAlignment(Element.ALIGN_LEFT);
         try {
-            table.setWidths(new float[] { 3, 1, 1, 2, 2 });
+            // Original: 3, 1, 1, 2, 2 -> 3, 0.4, 0.5, 1, 1
+            table.setWidths(new float[] { 3f, 0.4f, 0.5f, 1f, 1f });
         } catch (Exception e) {
         }
 
         addCell(table, "Produto", boldFont, Color.LIGHT_GRAY);
-        addCell(table, "Tam.", boldFont, Color.LIGHT_GRAY);
-        addCell(table, "Qtd.", boldFont, Color.LIGHT_GRAY);
-        addCell(table, "V. Unitário", boldFont, Color.LIGHT_GRAY);
-        addCell(table, "Total", boldFont, Color.LIGHT_GRAY);
+        addCell(table, "T", boldFont, Color.LIGHT_GRAY);
+        addCell(table, "Qtd", boldFont, Color.LIGHT_GRAY, Element.ALIGN_CENTER);
+        addCell(table, "Unt.", boldFont, Color.LIGHT_GRAY, Element.ALIGN_RIGHT);
+        addCell(table, "Total", boldFont, Color.LIGHT_GRAY, Element.ALIGN_RIGHT);
 
         java.util.List<PedidoProduto> produtos = new java.util.ArrayList<>(pedido.getProdutos());
         produtos.sort(java.util.Comparator
@@ -135,18 +145,74 @@ public class PedidoPdfService {
                 .thenComparing(p -> p.getProduto().getTamanho())
                 .thenComparing(p -> p.getValor()));
 
+        // Pre-calculate max integer parts length for alignment
+        int maxIntPartsUnit = 0;
+        int maxIntPartsTotal = 0;
+        for (PedidoProduto item : produtos) {
+            maxIntPartsUnit = Math.max(maxIntPartsUnit, getIntegerPartLength(item.getValor()));
+            BigDecimal bTotal = item.getValor().multiply(item.getQuantidade());
+            maxIntPartsTotal = Math.max(maxIntPartsTotal, getIntegerPartLength(bTotal));
+        }
+
         for (PedidoProduto item : produtos) {
             addCell(table, item.getProduto().getNome(), normalFont, null);
-            addCell(table, String.valueOf(item.getProduto().getTamanho()), normalFont, null);
-            addCell(table, String.valueOf(item.getQuantidade()), normalFont, null);
-            addCell(table, currencyFormatter.format(item.getValor()), normalFont, null);
+            addCell(table, String.format("%02d", item.getProduto().getTamanho()), normalFont, null);
+            addCell(table, String.format("%02d", item.getQuantidade().intValue()), normalFont, null, Element.ALIGN_CENTER);
+            
+            addCell(table, formatCurrencyWithSpaces(item.getValor(), maxIntPartsUnit), normalFont, null, Element.ALIGN_RIGHT);
 
             BigDecimal bTotal = item.getValor().multiply(item.getQuantidade());
-            addCell(table, currencyFormatter.format(bTotal), normalFont, null);
+            addCell(table, formatCurrencyWithSpaces(bTotal, maxIntPartsTotal), normalFont, null, Element.ALIGN_RIGHT);
         }
 
         document.add(table);
         document.add(new Paragraph("\n"));
+    }
+
+    private int getIntegerPartLength(BigDecimal value) {
+        if (value == null) return 1;
+        String formatted = currencyFormatter.format(value);
+        int firstDigitIdx = -1;
+        for (int i = 0; i < formatted.length(); i++) {
+            if (Character.isDigit(formatted.charAt(i))) {
+                firstDigitIdx = i;
+                break;
+            }
+        }
+        if (firstDigitIdx == -1) return 1;
+        String numericPart = formatted.substring(firstDigitIdx);
+        int commaIdx = numericPart.indexOf(',');
+        return (commaIdx == -1) ? numericPart.length() : commaIdx;
+    }
+
+    private String formatCurrencyWithSpaces(BigDecimal value, int maxIntPartsLength) {
+        if (value == null) value = BigDecimal.ZERO;
+        String formatted = currencyFormatter.format(value);
+        
+        int firstDigitIdx = -1;
+        for (int i = 0; i < formatted.length(); i++) {
+            if (Character.isDigit(formatted.charAt(i))) {
+                firstDigitIdx = i;
+                break;
+            }
+        }
+        
+        if (firstDigitIdx == -1) return formatted;
+        
+        String prefix = formatted.substring(0, firstDigitIdx);
+        String numericPart = formatted.substring(firstDigitIdx);
+        
+        int commaIdx = numericPart.indexOf(',');
+        int currentIntPartsLength = (commaIdx == -1) ? numericPart.length() : commaIdx;
+        
+        int spacesToAdd = maxIntPartsLength - currentIntPartsLength;
+        
+        StringBuilder sb = new StringBuilder(prefix);
+        for (int i = 0; i < spacesToAdd; i++) {
+            sb.append(" ");
+        }
+        sb.append(numericPart);
+        return sb.toString();
     }
 
     private void addObservations(Document document, Pedido pedido) {
@@ -188,8 +254,13 @@ public class PedidoPdfService {
     }
 
     private void addCell(PdfPTable table, String text, Font font, Color bgColor) {
+        addCell(table, text, font, bgColor, Element.ALIGN_LEFT);
+    }
+
+    private void addCell(PdfPTable table, String text, Font font, Color bgColor, int alignment) {
         PdfPCell cell = new PdfPCell(new Phrase(text, font));
         cell.setPadding(5);
+        cell.setHorizontalAlignment(alignment);
         if (bgColor != null) {
             cell.setBackgroundColor(bgColor);
         }

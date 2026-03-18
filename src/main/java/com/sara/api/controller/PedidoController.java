@@ -109,7 +109,7 @@ public class PedidoController {
 
         HttpHeaders headers = new HttpHeaders();
         headers.setContentType(MediaType.APPLICATION_PDF);
-        headers.setContentDispositionFormData("attachment", "pedido_" + id + ".pdf");
+        headers.add(HttpHeaders.CONTENT_DISPOSITION, "inline; filename=pedido_" + id + ".pdf");
         headers.setCacheControl("must-revalidate, post-check=0, pre-check=0");
 
         return new ResponseEntity<>(pdfBytes, headers, HttpStatus.OK);

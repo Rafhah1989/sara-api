@@ -7,6 +7,7 @@ import lombok.NoArgsConstructor;
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.time.OffsetDateTime;
+import java.time.ZoneId;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -68,6 +69,6 @@ public class Pedido {
 
     @PrePersist
     protected void onCreate() {
-        dataPedido = LocalDateTime.now();
+        dataPedido = LocalDateTime.now(ZoneId.of("America/Sao_Paulo"));
     }
 }
