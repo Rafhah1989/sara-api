@@ -42,6 +42,11 @@ public class PedidoService {
                 .orElseThrow(() -> new EntityNotFoundException("Pedido não encontrado com ID: " + id));
     }
 
+    public Pedido getPedidoEntityForPdf(Long id) {
+        return pedidoRepository.findByIdWithProdutos(id)
+                .orElseThrow(() -> new EntityNotFoundException("Pedido não encontrado com ID: " + id));
+    }
+
     public TabelaFreteResponseDTO sugerirFrete(Long usuarioId) {
         Usuario usuario = usuarioRepository.findById(usuarioId)
                 .orElseThrow(() -> new EntityNotFoundException("Usuário não encontrado: " + usuarioId));

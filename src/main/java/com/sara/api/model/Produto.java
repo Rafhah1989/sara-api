@@ -20,6 +20,8 @@ public class Produto {
     private String nome;
     private Integer tamanho;
     private Boolean ativo = true;
+    @Column(columnDefinition = "TEXT")
+    @Basic(fetch = FetchType.LAZY)
     private String imagem;
     private Long codigo;
     private Double preco;

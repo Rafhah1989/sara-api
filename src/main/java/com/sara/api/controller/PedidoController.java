@@ -104,7 +104,7 @@ public class PedidoController {
     @GetMapping("/{id}/pdf")
     @Operation(summary = "Gera PDF do pedido", description = "Gera e retorna um arquivo PDF formatado com os dados do pedido")
     public ResponseEntity<byte[]> gerarPdf(@PathVariable("id") Long id) {
-        Pedido pedido = pedidoService.getPedidoEntity(id);
+        Pedido pedido = pedidoService.getPedidoEntityForPdf(id);
         byte[] pdfBytes = pedidoPdfService.generatePedidoPdf(pedido);
 
         HttpHeaders headers = new HttpHeaders();
