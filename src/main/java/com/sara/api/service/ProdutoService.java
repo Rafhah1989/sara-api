@@ -77,7 +77,7 @@ public class ProdutoService {
         produtoRepository.deleteById(id);
     }
 
-    public Page<ProdutoResumoDTO> buscarParaLoja(String nome, Integer tamanho, Double precoMin, Double precoMax, Pageable pageable) {
+    public Page<ProdutoResumoDTO> buscarParaLoja(String nome, List<Integer> tamanhos, Double precoMin, Double precoMax, Pageable pageable) {
         Specification<Produto> spec = (root, query, cb) -> {
             List<Predicate> predicates = new ArrayList<>();
             predicates.add(cb.isTrue(root.get("ativo")));
@@ -86,8 +86,8 @@ public class ProdutoService {
             if (nome != null && !nome.trim().isEmpty()) {
                 predicates.add(cb.like(cb.lower(root.get("nome")), "%" + nome.toLowerCase() + "%"));
             }
-            if (tamanho != null) {
-                predicates.add(cb.equal(root.get("tamanho"), tamanho));
+            if (tamanhos != null && !tamanhos.isEmpty()) {
+                predicates.add(root.get("tamanho").in(tamanhos));
             }
             if (precoMin != null) {
                 predicates.add(cb.greaterThanOrEqualTo(root.get("preco"), precoMin));
@@ -126,5 +126,9 @@ public class ProdutoService {
 
     public List<Produto> listarAtivosOrdenados() {
         return produtoRepository.findByAtivoTrueOrderByNomeAscCodigoAscTamanhoAsc();
+    }
+
+    public List<Integer> listarTamanhosAtivos() {
+        return produtoRepository.findDistinctTamanhosAtivos();
     }
 }

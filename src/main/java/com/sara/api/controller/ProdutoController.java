@@ -67,11 +67,17 @@ public class ProdutoController {
     @Operation(summary = "Pesquisa da Loja Vitrine (Paginada)", description = "Filtro avançado por nome, tamanho e faixa de preço com Lazy Loading")
     public Page<ProdutoResumoDTO> buscarParaLoja(
             @RequestParam(required = false) String nome,
-            @RequestParam(required = false) Integer tamanho,
+            @RequestParam(required = false) List<Integer> tamanhos,
             @RequestParam(required = false) Double precoMin,
             @RequestParam(required = false) Double precoMax,
             @PageableDefault(size = 30, sort = "nome") Pageable pageable) {
-        return produtoService.buscarParaLoja(nome, tamanho, precoMin, precoMax, pageable);
+        return produtoService.buscarParaLoja(nome, tamanhos, precoMin, precoMax, pageable);
+    }
+
+    @GetMapping("/tamanhos")
+    @Operation(summary = "Listar tamanhos ativos", description = "Retorna todos os tamanhos distintos de produtos que estão ativos")
+    public List<Integer> listarTamanhosAtivos() {
+        return produtoService.listarTamanhosAtivos();
     }
 
     @GetMapping("/{id}")

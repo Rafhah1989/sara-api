@@ -29,4 +29,7 @@ public interface ProdutoRepository extends JpaRepository<Produto, Long>, JpaSpec
     List<com.sara.api.dto.ProdutoMiniDTO> findAtivosMini();
 
     List<Produto> findByAtivoTrueOrderByNomeAscCodigoAscTamanhoAsc();
+
+    @org.springframework.data.jpa.repository.Query("SELECT DISTINCT p.tamanho FROM Produto p WHERE p.ativo = true ORDER BY p.tamanho ASC")
+    List<Integer> findDistinctTamanhosAtivos();
 }
