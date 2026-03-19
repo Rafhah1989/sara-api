@@ -83,13 +83,13 @@ public class PedidoService {
         return empty;
     }
 
-    public List<PedidoResponseDTO> findByUsuario(Long usuarioId) {
+    public List<PedidoListResponseDTO> findByUsuario(Long usuarioId) {
         return pedidoRepository.findByUsuarioId(usuarioId).stream()
-                .map(this::convertToResponseDTO)
+                .map(this::convertToSummaryDTO)
                 .collect(Collectors.toList());
     }
 
-    public Page<PedidoResponseDTO> findAll(
+    public Page<PedidoListResponseDTO> findAll(
             Long id,
             String clienteNome,
             LocalDateTime dataInicio,
@@ -143,7 +143,7 @@ public class PedidoService {
         };
 
         return pedidoRepository.findAll(spec, pageable)
-                .map(this::convertToResponseDTO);
+                .map(this::convertToSummaryDTO);
     }
 
     @Transactional
@@ -157,9 +157,26 @@ public class PedidoService {
         pedido.setSituacao(SituacaoPedido.PENDENTE);
 
         // Map items
-        if (request.getProdutos() != null) {
+        if (request.getProdutos() != null && !request.getProdutos().isEmpty()) {
+            List<Long> produtoIds = request.getProdutos().stream()
+                    .map(PedidoProdutoRequestDTO::getProdutoId)
+                    .collect(Collectors.toList());
+            
+            var produtosMapa = produtoRepository.findAllById(produtoIds).stream()
+                    .collect(Collectors.toMap(Produto::getId, p -> p));
+
             for (PedidoProdutoRequestDTO itemDTO : request.getProdutos()) {
-                PedidoProduto item = createPedidoProduto(itemDTO, pedido);
+                Produto produto = produtosMapa.get(itemDTO.getProdutoId());
+                if (produto == null) {
+                    throw new EntityNotFoundException("Produto não encontrado: " + itemDTO.getProdutoId());
+                }
+                PedidoProduto item = new PedidoProduto();
+                item.setPedido(pedido);
+                item.setProduto(produto);
+                item.setValor(itemDTO.getValor());
+                item.setQuantidade(itemDTO.getQuantidade());
+                item.setDesconto(itemDTO.getDesconto());
+                item.setPeso(produto.getPeso() != null ? BigDecimal.valueOf(produto.getPeso()) : BigDecimal.ZERO);
                 pedido.getProdutos().add(item);
             }
         }
@@ -203,9 +220,26 @@ public class PedidoService {
         // Para seguir o padrão do usuário de "podendo ser enviada a lista de produtos
         // para serem alterados"
         pedido.getProdutos().clear();
-        if (request.getProdutos() != null) {
+        if (request.getProdutos() != null && !request.getProdutos().isEmpty()) {
+            List<Long> produtoIds = request.getProdutos().stream()
+                    .map(PedidoProdutoRequestDTO::getProdutoId)
+                    .collect(Collectors.toList());
+            
+            var produtosMapa = produtoRepository.findAllById(produtoIds).stream()
+                    .collect(Collectors.toMap(Produto::getId, p -> p));
+
             for (PedidoProdutoRequestDTO itemDTO : request.getProdutos()) {
-                PedidoProduto item = createPedidoProduto(itemDTO, pedido);
+                Produto produto = produtosMapa.get(itemDTO.getProdutoId());
+                if (produto == null) {
+                    throw new EntityNotFoundException("Produto não encontrado: " + itemDTO.getProdutoId());
+                }
+                PedidoProduto item = new PedidoProduto();
+                item.setPedido(pedido);
+                item.setProduto(produto);
+                item.setValor(itemDTO.getValor());
+                item.setQuantidade(itemDTO.getQuantidade());
+                item.setDesconto(itemDTO.getDesconto());
+                item.setPeso(produto.getPeso() != null ? BigDecimal.valueOf(produto.getPeso()) : BigDecimal.ZERO);
                 pedido.getProdutos().add(item);
             }
         }
@@ -296,6 +330,23 @@ public class PedidoService {
         return item;
     }
 
+    private PedidoListResponseDTO convertToSummaryDTO(Pedido pedido) {
+        PedidoListResponseDTO response = new PedidoListResponseDTO();
+        response.setId(pedido.getId());
+        response.setUsuarioId(pedido.getUsuario().getId());
+        response.setUsuarioNome(pedido.getUsuario().getNome());
+        response.setValorTotal(pedido.getValorTotal());
+        response.setCancelado(pedido.getCancelado());
+        response.setSituacao(pedido.getSituacao());
+        if (pedido.getSituacao() != null) {
+            response.setSituacaoDescricao(pedido.getSituacao().getDescricao());
+        }
+        response.setDataPedido(pedido.getDataPedido());
+        response.setPago(pedido.getPago());
+        response.setPagamentoOnline(pedido.getPagamentoOnline());
+        return response;
+    }
+
     private PedidoResponseDTO convertToResponseDTO(Pedido pedido) {
         PedidoResponseDTO response = new PedidoResponseDTO();
         response.setId(pedido.getId());
@@ -333,7 +384,7 @@ public class PedidoService {
             itemDTO.setQuantidade(item.getQuantidade());
             itemDTO.setDesconto(item.getDesconto());
             itemDTO.setPeso(item.getPeso() != null ? item.getPeso().doubleValue() : 0.0);
-            itemDTO.setTemImagem(item.getProduto().getImagem() != null && !item.getProduto().getImagem().isEmpty());
+            itemDTO.setTemImagem(Boolean.TRUE.equals(item.getProduto().getTemImagem()));
             itemDTO.setTamanho(item.getProduto().getTamanho());
             return itemDTO;
         }).collect(Collectors.toList()));

@@ -26,4 +26,11 @@ public class Produto {
     private Long codigo;
     private Double preco;
     private Double peso;
+    private Boolean temImagem = false;
+
+    @PrePersist
+    @PreUpdate
+    public void atualizarTemImagem() {
+        this.temImagem = this.imagem != null && !this.imagem.isEmpty();
+    }
 }

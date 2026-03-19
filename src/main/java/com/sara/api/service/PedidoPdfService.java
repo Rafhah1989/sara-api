@@ -98,7 +98,7 @@ public class PedidoPdfService {
         document.add(p);
 
         if (pedido.getDataPedido() != null) {
-            DateTimeFormatter formatter = DateTimeFormatter.ofPattern("dd/MM/yyyy HH:mm");
+            DateTimeFormatter formatter = DateTimeFormatter.ofPattern("dd/MM/yyyy");
             Paragraph pData = new Paragraph("Data: " + pedido.getDataPedido().format(formatter), boldFont);
             pData.setAlignment(Element.ALIGN_CENTER);
             document.add(pData);

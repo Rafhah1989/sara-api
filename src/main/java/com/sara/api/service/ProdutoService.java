@@ -32,7 +32,7 @@ public class ProdutoService {
     }
 
     public List<Produto> buscarPorNome(String nome) {
-        return produtoRepository.findByNomeContainingIgnoreCaseAndAtivoTrue(nome);
+        return produtoRepository.findByNomeContainingIgnoreCase(nome);
     }
 
     public List<Produto> listarAtivos() {

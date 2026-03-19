@@ -47,8 +47,8 @@ public class ProdutoController {
 
     @GetMapping("/nome/{nome}")
     @Operation(summary = "Buscar por nome", description = "Retorna uma lista de produtos que contenham o nome informado")
-    public List<ProdutoMiniDTO> buscarPorNome(@PathVariable("nome") String nome) {
-        return produtoService.buscarPorNomeMini(nome);
+    public List<Produto> buscarPorNome(@PathVariable("nome") String nome) {
+        return produtoService.buscarPorNome(nome);
     }
 
     @GetMapping

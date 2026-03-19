@@ -1,5 +1,6 @@
 package com.sara.api.controller;
 
+import com.sara.api.dto.PedidoListResponseDTO;
 import com.sara.api.dto.PedidoRequestDTO;
 import com.sara.api.dto.PedidoResponseDTO;
 import com.sara.api.model.Pedido;
@@ -39,7 +40,7 @@ public class PedidoController {
 
     @GetMapping
     @Operation(summary = "Listar pedidos com filtros e paginação", description = "Retorna uma página de pedidos filtrada por cliente, ID ou período")
-    public ResponseEntity<Page<PedidoResponseDTO>> listar(
+    public ResponseEntity<Page<PedidoListResponseDTO>> listar(
             @RequestParam(value = "id", required = false) Long id,
             @RequestParam(value = "clienteNome", required = false) String clienteNome,
             @RequestParam(value = "dataInicio", required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) LocalDateTime dataInicio,
@@ -54,7 +55,7 @@ public class PedidoController {
 
     @GetMapping("/usuario/{usuarioId}")
     @Operation(summary = "Busca pedidos por usuário", description = "Retorna a lista de todos os pedidos de um determinado usuário")
-    public ResponseEntity<List<PedidoResponseDTO>> buscarPorUsuario(@PathVariable("usuarioId") Long usuarioId) {
+    public ResponseEntity<List<PedidoListResponseDTO>> buscarPorUsuario(@PathVariable("usuarioId") Long usuarioId) {
         return ResponseEntity.ok(pedidoService.findByUsuario(usuarioId));
     }
 

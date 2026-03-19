@@ -15,6 +15,7 @@ public interface ProdutoRepository extends JpaRepository<Produto, Long>, JpaSpec
     List<com.sara.api.dto.ProdutoMiniDTO> findByNomeMini(@org.springframework.data.repository.query.Param("nome") String nome);
 
     List<Produto> findByNomeContainingIgnoreCaseAndAtivoTrue(String nome);
+    List<Produto> findByNomeContainingIgnoreCase(String nome);
 
     List<Produto> findByNomeAndAtivoTrueAndIdNot(String nome, Long id);
 

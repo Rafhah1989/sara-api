@@ -12,6 +12,7 @@ import java.awt.*;
 import java.io.ByteArrayOutputStream;
 import java.text.NumberFormat;
 import java.time.LocalDateTime;
+import java.time.ZoneId;
 import java.time.format.DateTimeFormatter;
 import java.util.List;
 import java.util.Locale;
@@ -74,7 +75,7 @@ public class ProdutoPdfService {
         infoCell.setBorder(Rectangle.NO_BORDER);
         infoCell.setHorizontalAlignment(Element.ALIGN_RIGHT);
         infoCell.addElement(new Paragraph("CATÁLOGO DE PRODUTOS", titleFont));
-        String dataH = LocalDateTime.now().format(DateTimeFormatter.ofPattern("dd/MM/yyyy HH:mm"));
+        String dataH = LocalDateTime.now(ZoneId.of("America/Sao_Paulo")).format(DateTimeFormatter.ofPattern("dd/MM/yyyy HH:mm"));
         infoCell.addElement(new Paragraph("Gerado em: " + dataH, smallFont));
         table.addCell(infoCell);
 

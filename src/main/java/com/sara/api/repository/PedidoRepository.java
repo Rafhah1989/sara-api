@@ -1,8 +1,10 @@
 package com.sara.api.repository;
 
 import com.sara.api.model.Pedido;
+import org.springframework.data.jpa.repository.EntityGraph;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.JpaSpecificationExecutor;
+import org.springframework.data.jpa.domain.Specification;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
@@ -13,6 +15,11 @@ import java.util.List;
 
 @Repository
 public interface PedidoRepository extends JpaRepository<Pedido, Long>, JpaSpecificationExecutor<Pedido> {
+    
+    @Override
+    @EntityGraph(attributePaths = {"usuario", "formaPagamento", "produtos", "produtos.produto"})
+    Page<Pedido> findAll(Specification<Pedido> spec, Pageable pageable);
+    @EntityGraph(attributePaths = {"usuario", "formaPagamento", "produtos", "produtos.produto"})
     List<Pedido> findByUsuarioId(Long usuarioId);
     java.util.Optional<Pedido> findByMercadopagoPagamentoId(String mercadopagoPagamentoId);
 

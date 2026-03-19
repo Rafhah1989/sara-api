@@ -15,6 +15,7 @@ import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Service;
 
 import java.time.LocalDateTime;
+import java.time.ZoneId;
 import java.time.format.DateTimeFormatter;
 import java.util.Properties;
 
@@ -117,7 +118,7 @@ public class EmailService {
 
     private String buildOrderCanceledEmailContent(Pedido pedido, com.sara.api.model.Usuario responsavel, String motivo) {
         DateTimeFormatter formatter = DateTimeFormatter.ofPattern("dd/MM/yyyy HH:mm:ss");
-        String dataCancelamento = LocalDateTime.now().format(formatter);
+        String dataCancelamento = LocalDateTime.now(ZoneId.of("America/Sao_Paulo")).format(formatter);
         String dataOriginal = pedido.getDataPedido().format(formatter);
 
         StringBuilder sb = new StringBuilder();
