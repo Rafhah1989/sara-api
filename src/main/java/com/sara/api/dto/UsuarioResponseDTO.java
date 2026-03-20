@@ -43,8 +43,8 @@ public class UsuarioResponseDTO {
     @Schema(description = "Observação", example = "Observação teste")
     private String observacao;
 
-    @Schema(description = "Padre", example = "Padre José")
-    private String padre;
+    @Schema(description = "Pároco", example = "Padre José")
+    private String paroco;
 
     @Schema(description = "Secretário", example = "João")
     private String secretario;

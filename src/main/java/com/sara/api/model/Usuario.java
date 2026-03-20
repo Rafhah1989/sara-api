@@ -59,7 +59,7 @@ public class Usuario implements UserDetails {
 
     private String observacao;
 
-    private String padre;
+    private String paroco;
 
     private String secretario;
 

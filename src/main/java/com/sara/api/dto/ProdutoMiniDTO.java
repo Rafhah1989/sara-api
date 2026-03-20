@@ -1,7 +1,6 @@
 package com.sara.api.dto;
 
 import com.sara.api.model.Produto;
-import lombok.AllArgsConstructor;
 import lombok.Data;
 import lombok.NoArgsConstructor;
 

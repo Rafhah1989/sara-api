@@ -1,7 +1,6 @@
 package com.sara.api.dto;
 
 import com.sara.api.model.Role;
-import com.sara.api.model.FormaPagamento;
 import io.swagger.v3.oas.annotations.media.Schema;
 import lombok.Data;
 
@@ -41,8 +40,8 @@ public class UsuarioRequestDTO {
     @Schema(description = "Observação adicional", example = "Cliente preferencial")
     private String observacao;
 
-    @Schema(description = "Nome do Padre", example = "Padre Marcelo Rossi")
-    private String padre;
+    @Schema(description = "Nome do Pároco", example = "Padre Marcelo Rossi")
+    private String paroco;
 
     @Schema(description = "Nome do Secretário", example = "Marcos")
     private String secretario;
