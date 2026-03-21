@@ -64,6 +64,9 @@ public class Pedido {
     @Column(name = "data_expiracao_pix")
     private OffsetDateTime dataExpiracaoPix;
 
+    @Column(name = "nota_fiscal_path")
+    private String notaFiscalPath;
+
     @OneToMany(mappedBy = "pedido", cascade = CascadeType.ALL, orphanRemoval = true)
     private List<PedidoProduto> produtos = new ArrayList<>();
 

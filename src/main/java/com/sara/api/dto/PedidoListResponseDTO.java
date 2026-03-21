@@ -19,4 +19,5 @@ public class PedidoListResponseDTO {
     private Boolean pago;
     private Boolean cancelado;
     private Boolean pagamentoOnline;
+    private String notaFiscalPath;
 }

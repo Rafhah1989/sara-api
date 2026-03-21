@@ -68,6 +68,9 @@ public class PedidoResponseDTO {
     @Schema(description = "Data de expiração do PIX", example = "2023-10-27T11:15:30Z")
     private OffsetDateTime dataExpiracaoPix;
 
+    @Schema(description = "Caminho ou nome do arquivo da Nota Fiscal no OCI", example = "nota_pedido_1_cliente_1.pdf")
+    private String notaFiscalPath;
+
     @Schema(description = "Lista detalhada dos produtos no pedido")
     private List<PedidoProdutoResponseDTO> produtos;
 }

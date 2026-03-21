@@ -14,6 +14,9 @@ import org.springframework.data.jpa.domain.Specification;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.core.io.InputStreamResource;
+import org.springframework.web.multipart.MultipartFile;
+import java.io.IOException;
 
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
@@ -32,6 +35,7 @@ public class PedidoService {
     private final FormaPagamentoRepository formaPagamentoRepository;
     private final EmailService emailService;
     private final MercadoPagoService mercadoPagoService;
+    private final OciObjectStorageService ociService;
 
     public PedidoResponseDTO findById(Long id) {
         return convertToResponseDTO(getPedidoEntity(id));
@@ -344,6 +348,7 @@ public class PedidoService {
         response.setDataPedido(pedido.getDataPedido());
         response.setPago(pedido.getPago());
         response.setPagamentoOnline(pedido.getPagamentoOnline());
+        response.setNotaFiscalPath(pedido.getNotaFiscalPath());
         return response;
     }
 
@@ -368,6 +373,7 @@ public class PedidoService {
         response.setMercadopagoPagamentoId(pedido.getMercadopagoPagamentoId());
         response.setPagamentoOnline(pedido.getPagamentoOnline());
         response.setDataExpiracaoPix(pedido.getDataExpiracaoPix());
+        response.setNotaFiscalPath(pedido.getNotaFiscalPath());
 
         if (pedido.getFormaPagamento() != null) {
             response.setFormaPagamentoId(pedido.getFormaPagamento().getId());
@@ -444,5 +450,50 @@ public class PedidoService {
                 }
             }
         }
+    }
+
+    @Transactional
+    public void salvarNotaFiscal(Long id, MultipartFile file, boolean notificar) throws IOException {
+        Pedido pedido = getPedidoEntity(id);
+        
+        // nota_pedido_{id}_cliente_{usuario_id}.pdf
+        String fileName = String.format("nota_pedido_%d_cliente_%d.pdf", pedido.getId(), pedido.getUsuario().getId());
+        
+        ociService.uploadFile(fileName, file.getInputStream(), file.getSize(), file.getContentType());
+        
+        pedido.setNotaFiscalPath(fileName);
+        pedidoRepository.save(pedido);
+
+        if (notificar) {
+            emailService.enviarEmailNotaFiscalDisponivel(pedido);
+        }
+    }
+
+    public void notificarNotaFiscal(Long id) {
+        Pedido pedido = getPedidoEntity(id);
+        if (pedido.getNotaFiscalPath() == null) {
+            throw new EntityNotFoundException("Este pedido ainda não possui uma Nota Fiscal anexada.");
+        }
+        emailService.enviarEmailNotaFiscalDisponivel(pedido);
+    }
+
+    @Transactional
+    public void excluirNotaFiscal(Long id) {
+        Pedido pedido = getPedidoEntity(id);
+        if (pedido.getNotaFiscalPath() != null) {
+            ociService.deleteFile(pedido.getNotaFiscalPath());
+            pedido.setNotaFiscalPath(null);
+            pedidoRepository.save(pedido);
+        }
+    }
+
+    public InputStreamResource downloadNotaFiscal(Long id) {
+        Pedido pedido = getPedidoEntity(id);
+        if (pedido.getNotaFiscalPath() == null) {
+            throw new EntityNotFoundException("Nota fiscal não encontrada para este pedido");
+        }
+        
+        java.io.InputStream is = ociService.downloadFile(pedido.getNotaFiscalPath());
+        return new InputStreamResource(is);
     }
 }

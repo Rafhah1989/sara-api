@@ -120,4 +120,42 @@ public class PedidoController {
     public ResponseEntity<PedidoResponseDTO> gerarPix(@PathVariable("id") Long id) {
         return ResponseEntity.ok(pedidoService.gerarPagamentoPixManual(id));
     }
+
+    @PostMapping(value = "/{id}/nota-fiscal", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
+    @Operation(summary = "Anexa uma Nota Fiscal ao pedido (ADMIN)", description = "Faz o upload do PDF da nota para o OCI e vincula ao pedido.")
+    @org.springframework.security.access.prepost.PreAuthorize("hasRole('ADMIN')")
+    public ResponseEntity<Void> uploadNotaFiscal(
+            @PathVariable("id") Long id, 
+            @RequestParam("file") org.springframework.web.multipart.MultipartFile file,
+            @RequestParam(value = "notificar", defaultValue = "true") boolean notificar) throws java.io.IOException {
+        pedidoService.salvarNotaFiscal(id, file, notificar);
+        return ResponseEntity.ok().build();
+    }
+
+    @PostMapping("/{id}/nota-fiscal/notificar")
+    @Operation(summary = "Envia e-mail de notificação de nota fiscal disponível (ADMIN)", description = "Envia/Reenvia e-mail ao cliente informando que a nota está disponível.")
+    @org.springframework.security.access.prepost.PreAuthorize("hasRole('ADMIN')")
+    public ResponseEntity<Void> notificarNotaFiscal(@PathVariable("id") Long id) {
+        pedidoService.notificarNotaFiscal(id);
+        return ResponseEntity.ok().build();
+    }
+
+    @GetMapping("/{id}/nota-fiscal")
+    @Operation(summary = "Visualiza a Nota Fiscal do pedido", description = "Retorna o PDF da nota fiscal diretamente para exibição no browser.")
+    public ResponseEntity<org.springframework.core.io.Resource> downloadNotaFiscal(@PathVariable("id") Long id) {
+        org.springframework.core.io.InputStreamResource resource = pedidoService.downloadNotaFiscal(id);
+        
+        return ResponseEntity.ok()
+                .contentType(MediaType.APPLICATION_PDF)
+                .header(HttpHeaders.CONTENT_DISPOSITION, "inline; filename=nota_fiscal_" + id + ".pdf")
+                .body(resource);
+    }
+
+    @DeleteMapping("/{id}/nota-fiscal")
+    @Operation(summary = "Remove a Nota Fiscal do pedido (ADMIN)", description = "Exclui o arquivo do OCI e remove o vínculo com o pedido.")
+    @org.springframework.security.access.prepost.PreAuthorize("hasRole('ADMIN')")
+    public ResponseEntity<Void> excluirNotaFiscal(@PathVariable("id") Long id) {
+        pedidoService.excluirNotaFiscal(id);
+        return ResponseEntity.noContent().build();
+    }
 }
