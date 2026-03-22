@@ -22,7 +22,7 @@ public class CarrinhoResponseDTO {
     @Schema(description = "Nome do Produto")
     private String produtoNome;
     @Schema(description = "Código do Produto")
-    private Long produtoCodigo;
+    private String produtoCodigo;
     @Schema(description = "Preço do Produto")
     private Double produtoPreco;
     @Schema(description = "Indica se o produto possui imagem")

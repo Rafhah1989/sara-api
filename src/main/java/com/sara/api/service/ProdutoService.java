@@ -39,7 +39,7 @@ public class ProdutoService {
         return produtoRepository.findByAtivoTrue();
     }
 
-    public Optional<Produto> buscarPorCodigo(Long codigo) {
+    public Optional<Produto> buscarPorCodigo(String codigo) {
         return produtoRepository.findByCodigoAndAtivoTrue(codigo);
     }
 
@@ -84,7 +84,22 @@ public class ProdutoService {
             predicates.add(cb.isNotNull(root.get("preco")));
 
             if (nome != null && !nome.trim().isEmpty()) {
-                predicates.add(cb.like(cb.lower(root.get("nome")), "%" + nome.toLowerCase() + "%"));
+                String termLower = nome.toLowerCase();
+                Predicate matchNome = cb.like(cb.lower(root.get("nome")), "%" + termLower + "%");
+                Predicate matchCodigo = cb.like(cb.lower(root.get("codigo")), "%" + termLower + "%");
+                predicates.add(cb.or(matchNome, matchCodigo));
+
+                // ORDENAÇÃO CUSTOMIZADA POR PRIORIDADE DE CÓDIGO
+                query.orderBy(
+                    cb.asc(
+                        cb.selectCase()
+                            .when(cb.like(cb.lower(root.get("codigo")), termLower + "%"), 1)
+                            .when(cb.like(cb.lower(root.get("codigo")), "%" + termLower), 2)
+                            .when(cb.like(cb.lower(root.get("codigo")), "%" + termLower + "%"), 3)
+                            .otherwise(4)
+                    ),
+                    cb.asc(root.get("nome"))
+                );
             }
             if (tamanhos != null && !tamanhos.isEmpty()) {
                 predicates.add(root.get("tamanho").in(tamanhos));
@@ -105,6 +120,8 @@ public class ProdutoService {
             stableSort = stableSort.and(org.springframework.data.domain.Sort.by("nome").ascending())
                                  .and(org.springframework.data.domain.Sort.by("codigo").ascending());
         } else {
+            // Se já não houver ordenação (que incluímos acima na Specification), usamos o padrão estável.
+            // Nota: Specification.orderBy sobrescreve o Pageable.sort na maioria das configurações do Hibernate/Spring.
             stableSort = org.springframework.data.domain.Sort.by("nome").ascending()
                                  .and(org.springframework.data.domain.Sort.by("codigo").ascending());
         }

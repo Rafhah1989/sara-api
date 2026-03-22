@@ -18,7 +18,7 @@ public class PedidoProdutoResponseDTO {
     private String produtoNome;
 
     @Schema(description = "Código do produto", example = "1001")
-    private Long produtoCodigo;
+    private String produtoCodigo;
 
     @Schema(description = "Valor histórico no momento da venda", example = "50.00")
     private BigDecimal valor;

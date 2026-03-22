@@ -23,7 +23,7 @@ public class Produto {
     @Column(columnDefinition = "TEXT")
     @Basic(fetch = FetchType.LAZY)
     private String imagem;
-    private Long codigo;
+    private String codigo;
     private Double preco;
     private Double peso;
     private Boolean temImagem = false;

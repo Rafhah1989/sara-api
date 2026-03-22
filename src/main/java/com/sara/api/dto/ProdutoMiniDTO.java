@@ -11,12 +11,12 @@ public class ProdutoMiniDTO {
     private String nome;
     private Integer tamanho;
     private Boolean ativo;
-    private Long codigo;
+    private String codigo;
     private Double preco;
     private Double peso;
     private Boolean temImagem;
 
-    public ProdutoMiniDTO(Long id, String nome, Integer tamanho, Boolean ativo, Long codigo, Double preco, Double peso, Boolean temImagem) {
+    public ProdutoMiniDTO(Long id, String nome, Integer tamanho, Boolean ativo, String codigo, Double preco, Double peso, Boolean temImagem) {
         this.id = id;
         this.nome = nome;
         this.tamanho = tamanho;

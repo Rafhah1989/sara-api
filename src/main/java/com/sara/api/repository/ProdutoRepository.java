@@ -19,7 +19,7 @@ public interface ProdutoRepository extends JpaRepository<Produto, Long>, JpaSpec
 
     List<Produto> findByNomeAndAtivoTrueAndIdNot(String nome, Long id);
 
-    java.util.Optional<Produto> findByCodigoAndAtivoTrue(Long codigo);
+    java.util.Optional<Produto> findByCodigoAndAtivoTrue(String codigo);
 
     List<Produto> findByAtivoTrue();
 

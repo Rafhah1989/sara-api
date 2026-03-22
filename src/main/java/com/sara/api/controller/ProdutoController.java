@@ -90,7 +90,7 @@ public class ProdutoController {
 
     @GetMapping("/codigo/{codigo}")
     @Operation(summary = "Buscar por código", description = "Retorna o produto ativo com o código informado")
-    public ResponseEntity<Produto> buscarPorCodigo(@PathVariable("codigo") Long codigo) {
+    public ResponseEntity<Produto> buscarPorCodigo(@PathVariable("codigo") String codigo) {
         return produtoService.buscarPorCodigo(codigo)
                 .map(ResponseEntity::ok)
                 .orElse(ResponseEntity.notFound().build());

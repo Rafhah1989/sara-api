@@ -124,24 +124,26 @@ public class PedidoPdfService {
     }
 
     private void addProductTable(Document document, Pedido pedido) {
-        PdfPTable table = new PdfPTable(5);
+        PdfPTable table = new PdfPTable(6);
         table.setWidthPercentage(65.5f);
         table.setHorizontalAlignment(Element.ALIGN_LEFT);
         try {
-            // Original: 3, 1, 1, 2, 2 -> 3, 0.4, 0.5, 1, 1
-            table.setWidths(new float[] { 3f, 0.4f, 0.5f, 1f, 1f });
+            // New widths: Cód(0.8), Qtd(0.5), Produto(2.2), T(0.4), Unt(1), Total(1)
+            table.setWidths(new float[] { 0.8f, 0.5f, 2.2f, 0.4f, 1f, 1f });
         } catch (Exception e) {
         }
 
+        addCell(table, "Cód.", boldFont, Color.LIGHT_GRAY);
+        addCell(table, "Qtd", boldFont, Color.LIGHT_GRAY, Element.ALIGN_CENTER);
         addCell(table, "Produto", boldFont, Color.LIGHT_GRAY);
         addCell(table, "T", boldFont, Color.LIGHT_GRAY);
-        addCell(table, "Qtd", boldFont, Color.LIGHT_GRAY, Element.ALIGN_CENTER);
         addCell(table, "Unt.", boldFont, Color.LIGHT_GRAY, Element.ALIGN_RIGHT);
         addCell(table, "Total", boldFont, Color.LIGHT_GRAY, Element.ALIGN_RIGHT);
 
         java.util.List<PedidoProduto> produtos = new java.util.ArrayList<>(pedido.getProdutos());
         produtos.sort(java.util.Comparator
-                .comparing((PedidoProduto p) -> p.getProduto().getNome().toLowerCase())
+                .comparing((PedidoProduto p) -> p.getProduto().getCodigo(), java.util.Comparator.nullsLast(java.util.Comparator.naturalOrder()))
+                .thenComparing(p -> p.getProduto().getNome().toLowerCase())
                 .thenComparing(p -> p.getProduto().getTamanho())
                 .thenComparing(p -> p.getValor()));
 
@@ -155,9 +157,10 @@ public class PedidoPdfService {
         }
 
         for (PedidoProduto item : produtos) {
+            addCell(table, item.getProduto().getCodigo(), normalFont, null);
+            addCell(table, String.format("%02d", item.getQuantidade().intValue()), normalFont, null, Element.ALIGN_CENTER);
             addCell(table, item.getProduto().getNome(), normalFont, null);
             addCell(table, String.format("%02d", item.getProduto().getTamanho()), normalFont, null);
-            addCell(table, String.format("%02d", item.getQuantidade().intValue()), normalFont, null, Element.ALIGN_CENTER);
             
             addCell(table, formatCurrencyWithSpaces(item.getValor(), maxIntPartsUnit), normalFont, null, Element.ALIGN_RIGHT);
 

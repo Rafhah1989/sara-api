@@ -13,7 +13,7 @@ public class ProdutoResumoDTO {
     private String nome;
     private Integer tamanho;
     private Boolean ativo;
-    private Long codigo;
+    private String codigo;
     private Double preco;
     private Double peso;
     private Boolean temImagem;
