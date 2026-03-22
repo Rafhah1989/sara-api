@@ -12,6 +12,7 @@ import com.sara.api.repository.ProdutoRepository;
 import com.sara.api.repository.UsuarioRepository;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
 import java.util.stream.Collectors;
@@ -49,6 +50,36 @@ public class CarrinhoService {
 
         carrinho = carrinhoRepository.save(carrinho);
         return converterParaDto(carrinho);
+    }
+
+    @Transactional
+    public List<CarrinhoResponseDTO> adicionarLote(List<CarrinhoRequestDTO> dtos) {
+        if (dtos == null || dtos.isEmpty()) {
+            return List.of();
+        }
+
+        return dtos.stream().map(dto -> {
+            CarrinhoId id = new CarrinhoId(dto.getUsuarioId(), dto.getProdutoId());
+            Carrinho carrinho = carrinhoRepository.findById(id).orElse(null);
+
+            if (carrinho != null) {
+                // Se já existe, soma a quantidade
+                carrinho.setQuantidade(carrinho.getQuantidade() + (dto.getQuantidade() != null ? dto.getQuantidade() : 0));
+            } else {
+                // Se não existe, cria novo
+                Usuario usuario = usuarioRepository.findById(dto.getUsuarioId())
+                        .orElseThrow(() -> new ValidationException("Usuário não encontrado: " + dto.getUsuarioId()));
+                Produto produto = produtoRepository.findById(dto.getProdutoId())
+                        .orElseThrow(() -> new ValidationException("Produto não encontrado: " + dto.getProdutoId()));
+
+                carrinho = new Carrinho();
+                carrinho.setId(id);
+                carrinho.setUsuario(usuario);
+                carrinho.setProduto(produto);
+                carrinho.setQuantidade(dto.getQuantidade() != null ? dto.getQuantidade() : 1);
+            }
+            return converterParaDto(carrinhoRepository.save(carrinho));
+        }).collect(Collectors.toList());
     }
 
     public void remover(Long usuarioId, Long produtoId) {

@@ -26,6 +26,13 @@ public class CarrinhoController {
         return ResponseEntity.ok(carrinhoService.adicionar(dto));
     }
 
+    @PostMapping("/lote")
+    @Operation(summary = "Adicionar em lote", description = "Adiciona múltiplos produtos ao carrinho")
+    public ResponseEntity<List<CarrinhoResponseDTO>> adicionarLote(
+            @RequestBody List<CarrinhoRequestDTO> dtos) {
+        return ResponseEntity.ok(carrinhoService.adicionarLote(dtos));
+    }
+
     @DeleteMapping("/{idUsuario}/{idProduto}")
     @Operation(summary = "Remover do carrinho", description = "Remove vínculo de um produto com um usuário")
     public ResponseEntity<Void> remover(
