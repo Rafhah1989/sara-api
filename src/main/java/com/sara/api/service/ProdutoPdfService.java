@@ -95,23 +95,29 @@ public class ProdutoPdfService {
 
     private void addProductTable(Document document, List<Produto> produtos) {
         PdfPTable table = new PdfPTable(5);
-        table.setWidthPercentage(100);
+        table.setWidthPercentage(75); // Diminuída proporcionalmente
+        table.setHorizontalAlignment(Element.ALIGN_LEFT); // Alinhada à esquerda
         try {
-            table.setWidths(new float[] { 2, 5, 2, 2, 3 });
+            // Código(2), Produto(5), Tam(1), Qtd(1), Valor(1.2)
+            // Reduções: Tam -50%, Qtd -50%, Valor -60% do original (2,5,2,2,3)
+            table.setWidths(new float[] { 2f, 5f, 1f, 1f, 1.2f });
         } catch (Exception e) {}
 
         addCell(table, "CÓDIGO", boldFont, Color.LIGHT_GRAY, Element.ALIGN_CENTER);
         addCell(table, "PRODUTO", boldFont, Color.LIGHT_GRAY, Element.ALIGN_LEFT);
         addCell(table, "TAM.", boldFont, Color.LIGHT_GRAY, Element.ALIGN_CENTER);
-        addCell(table, "QTD", boldFont, Color.YELLOW, Element.ALIGN_CENTER); // Destaque para preenchimento
-        addCell(table, "Valor", boldFont, Color.LIGHT_GRAY, Element.ALIGN_CENTER);
+        addCell(table, "QTD", boldFont, Color.YELLOW, Element.ALIGN_CENTER); 
+        addCell(table, "Valor (R$)", boldFont, Color.LIGHT_GRAY, Element.ALIGN_CENTER);
 
         for (Produto p : produtos) {
             addCell(table, String.valueOf(p.getCodigo()), normalFont, null, Element.ALIGN_CENTER);
             addCell(table, p.getNome(), normalFont, null, Element.ALIGN_LEFT);
-            addCell(table, p.getTamanho() + "cm", normalFont, null, Element.ALIGN_CENTER);
-            addCell(table, " ", normalFont, null, Element.ALIGN_CENTER); // Espaço vazio para preenchimento manual
-            addCell(table, currencyFormatter.format(p.getPreco()), normalFont, null, Element.ALIGN_RIGHT);
+            // Tamanho sempre com dois dígitos + cm
+            addCell(table, String.format("%02dcm", p.getTamanho()), normalFont, null, Element.ALIGN_CENTER);
+            addCell(table, " ", normalFont, null, Element.ALIGN_CENTER); 
+            // Valor sem o R$
+            String valorSemSimbolo = currencyFormatter.format(p.getPreco()).replace("R$", "").trim();
+            addCell(table, valorSemSimbolo, normalFont, null, Element.ALIGN_RIGHT);
         }
 
         document.add(table);
