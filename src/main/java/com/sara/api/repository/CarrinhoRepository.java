@@ -9,7 +9,10 @@ import org.springframework.transaction.annotation.Transactional;
 import java.util.List;
 
 public interface CarrinhoRepository extends JpaRepository<Carrinho, CarrinhoId> {
+    @Query("SELECT c FROM Carrinho c JOIN FETCH c.produto WHERE c.usuario.id = :usuarioId")
     List<Carrinho> findByUsuarioId(Long usuarioId);
+
+    @Query("SELECT c FROM Carrinho c JOIN FETCH c.produto WHERE c.produto.id = :produtoId")
     List<Carrinho> findByProdutoId(Long produtoId);
     
     @Modifying

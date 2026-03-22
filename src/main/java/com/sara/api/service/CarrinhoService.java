@@ -108,18 +108,21 @@ public class CarrinhoService {
         return converterParaDto(carrinho);
     }
 
+    @Transactional(readOnly = true)
     public List<CarrinhoResponseDTO> listarTodos() {
         return carrinhoRepository.findAll().stream()
                 .map(this::converterParaDto)
                 .collect(Collectors.toList());
     }
 
+    @Transactional(readOnly = true)
     public List<CarrinhoResponseDTO> buscarPorUsuario(Long usuarioId) {
         return carrinhoRepository.findByUsuarioId(usuarioId).stream()
                 .map(this::converterParaDto)
                 .collect(Collectors.toList());
     }
 
+    @Transactional(readOnly = true)
     public List<CarrinhoResponseDTO> buscarPorProduto(Long produtoId) {
         return carrinhoRepository.findByProdutoId(produtoId).stream()
                 .map(this::converterParaDto)
@@ -143,6 +146,7 @@ public class CarrinhoService {
         dto.setProdutoAtivo(p.getAtivo());
         dto.setProdutoTamanho(p.getTamanho());
         dto.setTemImagem(p.getImagem() != null && !p.getImagem().isEmpty());
+        dto.setProdutoImagem(p.getImagem());
         dto.setProdutoPeso(p.getPeso());
         dto.setQuantidade(carrinho.getQuantidade());
         

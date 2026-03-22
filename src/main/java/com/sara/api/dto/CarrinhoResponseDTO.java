@@ -34,6 +34,9 @@ public class CarrinhoResponseDTO {
 
     @Schema(description = "Peso do Produto")
     private Double produtoPeso;
+
+    @Schema(description = "Imagem do Produto (Base64)")
+    private String produtoImagem;
     
     @Schema(description = "Quantidade no carrinho")
     private Integer quantidade;
