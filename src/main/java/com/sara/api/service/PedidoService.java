@@ -19,6 +19,7 @@ import org.springframework.web.multipart.MultipartFile;
 import java.io.IOException;
 
 import java.math.BigDecimal;
+import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.OffsetDateTime;
 import java.util.ArrayList;
@@ -36,9 +37,21 @@ public class PedidoService {
     private final EmailService emailService;
     private final MercadoPagoService mercadoPagoService;
     private final OciObjectStorageService ociService;
+    private final PagamentoRepository pagamentoRepository;
 
+    @Transactional(readOnly = true)
     public PedidoResponseDTO findById(Long id) {
-        return convertToResponseDTO(getPedidoEntity(id));
+        return convertToResponseDTO(findByIdWithDetails(id));
+    }
+
+    private Pedido findByIdWithDetails(Long id) {
+        Pedido pedido = pedidoRepository.findByIdWithDetails(id)
+                .orElseThrow(() -> new EntityNotFoundException("Pedido não encontrado com ID: " + id));
+        // Inicializa a segunda bag (pagamentos) manualmente para evitar MultipleBagFetchException
+        if (pedido.getPagamentos() != null) {
+            pedido.getPagamentos().size();
+        }
+        return pedido;
     }
 
     public Pedido getPedidoEntity(Long id) {
@@ -87,12 +100,25 @@ public class PedidoService {
         return empty;
     }
 
+    @Transactional(readOnly = true)
     public List<PedidoListResponseDTO> findByUsuario(Long usuarioId) {
         return pedidoRepository.findByUsuarioId(usuarioId).stream()
                 .map(this::convertToSummaryDTO)
                 .collect(Collectors.toList());
     }
 
+    @Transactional(readOnly = true)
+    public Page<PedidoListResponseDTO> findAll(
+            Long id,
+            String clienteNome,
+            LocalDateTime dataInicio,
+            LocalDateTime dataFim,
+            SituacaoPedido situacao,
+            Pageable pageable) {
+        return findAll(id, clienteNome, dataInicio, dataFim, situacao, false, pageable);
+    }
+
+    @Transactional(readOnly = true)
     public Page<PedidoListResponseDTO> findAll(
             Long id,
             String clienteNome,
@@ -204,8 +230,7 @@ public class PedidoService {
         gerarPagamentoPixSeNecessario(saved);
 
         // Busca o pedido carregando todos os produtos e detalhes para evitar LazyInitializationException no e-mail assíncrono
-        Pedido savedCompleto = pedidoRepository.findByIdWithProdutos(saved.getId())
-                .orElseThrow(() -> new EntityNotFoundException("Pedido não encontrado após salvar"));
+        Pedido savedCompleto = findByIdWithAll(saved.getId());
 
         // Dispara e-mail assíncrono para o novo pedido
         emailService.enviarEmailNovoPedido(savedCompleto);
@@ -215,8 +240,7 @@ public class PedidoService {
 
     @Transactional
     public PedidoResponseDTO update(Long id, PedidoRequestDTO request) {
-        Pedido pedido = pedidoRepository.findById(id)
-                .orElseThrow(() -> new EntityNotFoundException("Pedido não encontrado"));
+        Pedido pedido = findByIdWithDetails(id);
 
         updatePedidoFromDTO(pedido, request);
 
@@ -248,7 +272,12 @@ public class PedidoService {
             }
         }
 
-        Pedido updated = pedidoRepository.save(pedido);
+        Pedido updated = pedidoRepository.saveAndFlush(pedido);
+
+        if (Boolean.TRUE.equals(request.getNotificar())) {
+            emailService.enviarEmailPedidoAtualizado(updated);
+        }
+
         return convertToResponseDTO(updated);
     }
 
@@ -267,14 +296,57 @@ public class PedidoService {
         pedidoRepository.save(pedido);
 
         // Busca o pedido carregando todos os produtos e detalhes para evitar LazyInitializationException no e-mail assíncrono
-        Pedido pedidoCompleto = pedidoRepository.findByIdWithProdutos(id)
-                .orElseThrow(() -> new EntityNotFoundException("Pedido não encontrado após salvar"));
+        Pedido pedidoCompleto = findByIdWithAll(id);
 
         // Captura o usuário autenticado que está realizando o cancelamento
         var auth = SecurityContextHolder.getContext().getAuthentication();
         if (auth != null && auth.getPrincipal() instanceof Usuario responsavel) {
             emailService.enviarEmailPedidoCancelado(pedidoCompleto, responsavel, motivo);
         }
+    }
+
+    @Transactional
+    public void confirmarPedido(Long id, boolean enviarEmail, boolean ajustarDatas) {
+        Pedido pedido = getPedidoEntityWithPagamentos(id);
+        pedido.setSituacao(SituacaoPedido.CONFIRMADO);
+        
+        if (ajustarDatas && pedido.getPagamentos() != null) {
+            LocalDate hoje = LocalDate.now();
+            // Calcula o gap entre a data do pedido e hoje para deslocar os vencimentos?
+            // "considerando a data atual, e não mais a data do pedido"
+            // Isso geralmente sugere que se o intervalo era 30 dias após o pedido, 
+            // agora deve ser 30 dias após HOJE (a confirmação).
+            
+            long diasDiferenca = java.time.temporal.ChronoUnit.DAYS.between(pedido.getDataPedido().toLocalDate(), hoje);
+            
+            if (diasDiferenca > 0) {
+                for (Pagamento p : pedido.getPagamentos()) {
+                    if (p.getDataVencimento() != null) {
+                        p.setDataVencimento(p.getDataVencimento().plusDays(diasDiferenca));
+                    }
+                }
+            }
+        }
+        
+        pedidoRepository.save(pedido);
+        
+        if (enviarEmail) {
+            emailService.enviarEmailPedidoConfirmado(pedido);
+        }
+    }
+
+    @Transactional
+    public void notificarConfirmacao(Long id) {
+        Pedido pedido = findByIdWithDetails(id);
+        emailService.enviarEmailPedidoConfirmado(pedido);
+    }
+
+    private Pedido findByIdWithAll(Long id) {
+        return findByIdWithDetails(id);
+    }
+
+    private Pedido getPedidoEntityWithPagamentos(Long id) {
+        return findByIdWithAll(id);
     }
 
     @Transactional
@@ -295,9 +367,6 @@ public class PedidoService {
             pedido.setSituacao(request.getSituacao());
         }
 
-        if (request.getPago() != null) {
-            pedido.setPago(request.getPago());
-        }
 
         if (request.getFormaPagamentoId() != null) {
             FormaPagamento fp = formaPagamentoRepository.findById(request.getFormaPagamentoId())
@@ -313,6 +382,36 @@ public class PedidoService {
             }
             // Regra: Somente PIX pode ser online por enquanto
             pedido.setPagamentoOnline(request.getPagamentoOnline() && isPix);
+        }
+
+        if (request.getPagamentos() != null) {
+            // Limpa a lista atual para que o orphanRemoval do Hibernate cuide das exclusões
+            pedido.getPagamentos().clear();
+            
+            for (PagamentoRequestDTO pDTO : request.getPagamentos()) {
+                Pagamento p = new Pagamento();
+                p.setValor(pDTO.getValor());
+                p.setDataVencimento(pDTO.getDataVencimento());
+                p.setPago(Boolean.TRUE.equals(pDTO.getPago()));
+                
+                if (pDTO.getFormaPagamentoId() != null) {
+                    p.setFormaPagamento(formaPagamentoRepository.getReferenceById(pDTO.getFormaPagamentoId()));
+                } else {
+                    p.setFormaPagamento(pedido.getFormaPagamento());
+                }
+                
+                p.setPedido(pedido);
+                pedido.getPagamentos().add(p);
+            }
+        }
+
+        // Se houver pagamentos (parcelamento), o status 'pago' do pedido depende de todas as parcelas estarem pagas.
+        if (pedido.getPagamentos() != null && !pedido.getPagamentos().isEmpty()) {
+            boolean todasPagas = pedido.getPagamentos().stream().allMatch(p -> Boolean.TRUE.equals(p.getPago()));
+            pedido.setPago(todasPagas);
+        } else {
+            // Se não houver lista de parcelas, usa o valor vindo do DTO (caso geral)
+            pedido.setPago(Boolean.TRUE.equals(request.getPago()));
         }
     }
 
@@ -380,6 +479,29 @@ public class PedidoService {
             response.setFormaPagamentoDescricao(pedido.getFormaPagamento().getDescricao());
         }
 
+        if (pedido.getPagamentos() != null) {
+            response.setPagamentos(pedido.getPagamentos().stream()
+                .sorted((p1, p2) -> {
+                    if (p1.getDataVencimento() == null && p2.getDataVencimento() == null) return p1.getId().compareTo(p2.getId());
+                    if (p1.getDataVencimento() == null) return 1;
+                    if (p2.getDataVencimento() == null) return -1;
+                    int comp = p1.getDataVencimento().compareTo(p2.getDataVencimento());
+                    return comp != 0 ? comp : p1.getId().compareTo(p2.getId());
+                })
+                .map(p -> {
+                PagamentoResponseDTO pDTO = new PagamentoResponseDTO();
+                pDTO.setId(p.getId());
+                pDTO.setDataVencimento(p.getDataVencimento());
+                pDTO.setValor(p.getValor());
+                pDTO.setPago(p.getPago());
+                if (p.getFormaPagamento() != null) {
+                    pDTO.setFormaPagamentoId(p.getFormaPagamento().getId());
+                    pDTO.setFormaPagamentoDescricao(p.getFormaPagamento().getDescricao());
+                }
+                return pDTO;
+            }).collect(Collectors.toList()));
+        }
+
         response.setProdutos(pedido.getProdutos().stream().map(item -> {
             PedidoProdutoResponseDTO itemDTO = new PedidoProdutoResponseDTO();
             itemDTO.setId(item.getId());
@@ -411,7 +533,6 @@ public class PedidoService {
                 .orElseThrow(() -> new EntityNotFoundException("Pedido não encontrado"));
         
         gerarPagamentoPixSeNecessario(pedido);
-        
         return convertToResponseDTO(pedido);
     }
 

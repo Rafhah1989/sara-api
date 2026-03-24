@@ -73,4 +73,7 @@ public class PedidoResponseDTO {
 
     @Schema(description = "Lista detalhada dos produtos no pedido")
     private List<PedidoProdutoResponseDTO> produtos;
+
+    @Schema(description = "Lista de parcelas/pagamentos do pedido")
+    private List<PagamentoResponseDTO> pagamentos;
 }

@@ -158,4 +158,22 @@ public class PedidoController {
         pedidoService.excluirNotaFiscal(id);
         return ResponseEntity.noContent().build();
     }
+
+    @PostMapping("/{id}/confirmar")
+    @Operation(summary = "Confirma o pedido (ADMIN)", description = "Altera a situação para CONFIRMADO, envia e-mail opcional e ajusta datas de pagamento.")
+    @org.springframework.security.access.prepost.PreAuthorize("hasRole('ADMIN')")
+    public ResponseEntity<Void> confirmar(
+            @PathVariable("id") Long id,
+            @RequestBody com.sara.api.dto.ConfirmacaoPedidoRequestDTO request) {
+        pedidoService.confirmarPedido(id, request.isEnviarEmail(), request.isAjustarDatas());
+        return ResponseEntity.ok().build();
+    }
+
+    @PostMapping("/{id}/confirmacao/notificar")
+    @Operation(summary = "Reenvia e-mail de confirmação do pedido (ADMIN)", description = "Reenvia o e-mail de confirmação ao cliente.")
+    @org.springframework.security.access.prepost.PreAuthorize("hasRole('ADMIN')")
+    public ResponseEntity<Void> reenviarConfirmacao(@PathVariable("id") Long id) {
+        pedidoService.notificarConfirmacao(id);
+        return ResponseEntity.ok().build();
+    }
 }

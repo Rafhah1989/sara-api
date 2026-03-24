@@ -38,4 +38,10 @@ public class PedidoRequestDTO {
 
     @Schema(description = "Lista de produtos e seus detalhes no pedido")
     private List<PedidoProdutoRequestDTO> produtos;
+
+    @Schema(description = "Lista de parcelas/pagamentos do pedido")
+    private List<PagamentoRequestDTO> pagamentos;
+
+    @Schema(description = "Indica se o cliente deve ser notificado por e-mail sobre a atualização", example = "false")
+    private Boolean notificar;
 }

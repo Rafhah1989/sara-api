@@ -1,13 +1,12 @@
 package com.sara.api.service;
 
+import com.sara.api.dto.OpcaoParcelamentoResponseDTO;
 import com.sara.api.dto.UsuarioRequestDTO;
 import com.sara.api.dto.UsuarioResponseDTO;
+import com.sara.api.model.OpcaoParcelamento;
 import com.sara.api.model.Role;
 import com.sara.api.model.Usuario;
-import com.sara.api.repository.UsuarioRepository;
-import com.sara.api.repository.SetorRepository;
-import com.sara.api.repository.TabelaFreteRepository;
-import com.sara.api.repository.FormaPagamentoRepository;
+import com.sara.api.repository.*;
 import com.sara.api.validator.UsuarioValidator;
 import com.sara.api.exception.ValidationException;
 import lombok.extern.slf4j.Slf4j;
@@ -48,6 +47,9 @@ public class UsuarioService {
 
     @Autowired
     private EmailService emailService;
+
+    @Autowired
+    private OpcaoParcelamentoRepository opcaoParcelamentoRepository;
 
     @Value("${URL_BASE:http://localhost:4200}")
     private String urlBase;
@@ -148,6 +150,20 @@ public class UsuarioService {
                     .orElseThrow(() -> new RuntimeException("Forma de Pagamento não encontrada")));
         } else {
             usuario.setFormaPagamento(null);
+        }
+
+        if (request.getPermitirParcelamento() != null) {
+            usuario.setPermitirParcelamento(request.getPermitirParcelamento());
+        }
+
+        if (request.getAtivarDescontoAVista() != null) {
+            usuario.setAtivarDescontoAVista(request.getAtivarDescontoAVista());
+        }
+
+        if (request.getOpcoesParcelamentoIds() != null) {
+            usuario.getOpcoesParcelamento().clear();
+            List<OpcaoParcelamento> opcoes = opcaoParcelamentoRepository.findAllById(request.getOpcoesParcelamentoIds());
+            usuario.getOpcoesParcelamento().addAll(opcoes);
         }
     }
 
@@ -295,6 +311,21 @@ public class UsuarioService {
         if (usuario.getFormaPagamento() != null) {
             dto.setFormaPagamentoId(usuario.getFormaPagamento().getId());
             dto.setFormaPagamentoDescricao(usuario.getFormaPagamento().getDescricao());
+        }
+
+        dto.setPermitirParcelamento(usuario.getPermitirParcelamento());
+        dto.setAtivarDescontoAVista(usuario.getAtivarDescontoAVista());
+        if (usuario.getOpcoesParcelamento() != null) {
+            dto.setOpcoesParcelamento(usuario.getOpcoesParcelamento().stream().map(opt -> {
+                OpcaoParcelamentoResponseDTO optDto = new OpcaoParcelamentoResponseDTO();
+                optDto.setId(opt.getId());
+                optDto.setFormaPagamentoId(opt.getFormaPagamento().getId());
+                optDto.setFormaPagamentoDescricao(opt.getFormaPagamento().getDescricao());
+                optDto.setQtdMaxParcelas(opt.getQtdMaxParcelas());
+                optDto.setDiasVencimentoIntervalo(opt.getDiasVencimentoIntervalo());
+                optDto.setValorMinimoParcela(opt.getValorMinimoParcela());
+                return optDto;
+            }).collect(Collectors.toList()));
         }
 
         return dto;

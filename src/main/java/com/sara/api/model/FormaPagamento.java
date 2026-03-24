@@ -18,6 +18,9 @@ public class FormaPagamento {
     private String descricao;
 
     private Double desconto;
+    
+    @Column(name = "valor_minimo", precision = 19, scale = 2)
+    private java.math.BigDecimal valorMinimo = java.math.BigDecimal.ZERO;
 
     @Column(name = "icone_font_awesome", length = 100)
     private String iconeFontAwesome;

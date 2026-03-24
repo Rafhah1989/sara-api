@@ -16,6 +16,9 @@ public class FormaPagamentoDTO {
     @Schema(description = "Percentual de desconto atrelado a essa modalidade", example = "5.0")
     private Double desconto;
 
+    @Schema(description = "Valor mínimo total para disponibilizar esta forma (à vista)", example = "50.0")
+    private java.math.BigDecimal valorMinimo = java.math.BigDecimal.ZERO;
+
     @Schema(description = "Ícone de sistema utilizado na renderização", example = "fa-brands fa-pix")
     private String iconeFontAwesome;
 }

@@ -53,6 +53,7 @@ public class FormaPagamentoService {
     private FormaPagamentoDTO toDTO(FormaPagamento entidade) {
         FormaPagamentoDTO dto = new FormaPagamentoDTO();
         BeanUtils.copyProperties(entidade, dto);
+        dto.setValorMinimo(entidade.getValorMinimo());
         return dto;
     }
 }

@@ -17,9 +17,9 @@ import java.util.List;
 public interface PedidoRepository extends JpaRepository<Pedido, Long>, JpaSpecificationExecutor<Pedido> {
     
     @Override
-    @EntityGraph(attributePaths = {"usuario", "formaPagamento", "produtos", "produtos.produto"})
+    @EntityGraph(attributePaths = {"usuario", "formaPagamento"})
     Page<Pedido> findAll(Specification<Pedido> spec, Pageable pageable);
-    @EntityGraph(attributePaths = {"usuario", "formaPagamento", "produtos", "produtos.produto"})
+    @EntityGraph(attributePaths = {"usuario", "formaPagamento"})
     List<Pedido> findByUsuarioId(Long usuarioId);
     java.util.Optional<Pedido> findByMercadopagoPagamentoId(String mercadopagoPagamentoId);
 
@@ -28,6 +28,10 @@ public interface PedidoRepository extends JpaRepository<Pedido, Long>, JpaSpecif
             "LEFT JOIN FETCH pp.produto " +
             "WHERE p.id = :id")
     java.util.Optional<Pedido> findByIdWithProdutos(@Param("id") Long id);
+
+    @EntityGraph(attributePaths = {"usuario", "formaPagamento", "produtos", "produtos.produto"})
+    @Query("SELECT p FROM Pedido p WHERE p.id = :id")
+    java.util.Optional<Pedido> findByIdWithDetails(@Param("id") Long id);
 
     @Query("SELECT p FROM Pedido p WHERE " +
             "(:id IS NULL OR p.id = :id) AND " +

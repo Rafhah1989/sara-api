@@ -7,6 +7,7 @@ import lombok.AllArgsConstructor;
 import org.springframework.security.core.GrantedAuthority;
 import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.security.core.userdetails.UserDetails;
+import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
 
@@ -90,6 +91,20 @@ public class Usuario implements UserDetails {
     private String senha;
 
     private Boolean ativo = true;
+
+    @Column(name = "permitir_parcelamento", nullable = false)
+    private Boolean permitirParcelamento = false;
+
+    @Column(name = "ativar_desconto_a_vista", nullable = false)
+    private Boolean ativarDescontoAVista = false;
+
+    @ManyToMany
+    @JoinTable(
+        name = "usuario_opcao_parcelamento",
+        joinColumns = @JoinColumn(name = "usuario_id"),
+        inverseJoinColumns = @JoinColumn(name = "opcao_parcelamento_id")
+    )
+    private List<OpcaoParcelamento> opcoesParcelamento = new ArrayList<>();
 
     @Override
     public Collection<? extends GrantedAuthority> getAuthorities() {

@@ -118,6 +118,99 @@ public class EmailService {
 
     @Async
     @Retryable(value = Exception.class, maxAttempts = 3, backoff = @Backoff(delay = 5000))
+    public void enviarEmailPedidoConfirmado(Pedido pedido) {
+        log.info("Iniciando tentativa de envio de e-mail de confirmação para o pedido #{}", pedido.getId());
+
+        Configuracao config = configuracaoRepository.findAll().stream().findFirst().orElse(null);
+        if (config == null || !Boolean.TRUE.equals(config.getEmailAtivo())) {
+            log.info("Envio de e-mail desativado ou configuração não encontrada.");
+            return;
+        }
+
+        try {
+            JavaMailSenderImpl mailSender = new JavaMailSenderImpl();
+            mailSender.setHost(config.getMailHost());
+            mailSender.setPort(config.getMailPort());
+            mailSender.setUsername(config.getMailUsername());
+            mailSender.setPassword(config.getMailPassword());
+
+            Properties props = mailSender.getJavaMailProperties();
+            props.put("mail.transport.protocol", "smtp");
+            props.put("mail.smtp.auth", String.valueOf(config.getMailAuth()));
+            props.put("mail.smtp.starttls.enable", String.valueOf(config.getMailStarttls()));
+            props.put("mail.smtp.ssl.trust", config.getMailHost());
+            props.put("mail.debug", "false");
+
+            MimeMessage message = mailSender.createMimeMessage();
+            MimeMessageHelper helper = new MimeMessageHelper(message, true, "UTF-8");
+
+            String subject = String.format("Pedido %d confirmado - %s", pedido.getId(), pedido.getUsuario().getNome());
+            helper.setSubject(subject);
+            helper.setFrom(config.getMailUsername());
+            helper.setTo(pedido.getUsuario().getEmail());
+
+            String content = buildOrderConfirmedEmailContent(pedido);
+            helper.setText(content, true);
+
+            mailSender.send(message);
+            log.info("E-mail de confirmação enviado com sucesso para o pedido #{}", pedido.getId());
+
+        } catch (Exception e) {
+            log.error("Erro ao enviar e-mail de confirmação para o pedido #{}: {}", pedido.getId(), e.getMessage());
+            throw new RuntimeException("Falha no envio de e-mail de confirmação", e);
+        }
+    }
+
+    @Async
+    @Retryable(value = Exception.class, maxAttempts = 3, backoff = @Backoff(delay = 5000))
+    public void enviarEmailPedidoAtualizado(Pedido pedido) {
+        log.info("Iniciando tentativa de envio de e-mail de atualização para o pedido #{}", pedido.getId());
+
+        Configuracao config = configuracaoRepository.findAll().stream().findFirst().orElse(null);
+        if (config == null || !Boolean.TRUE.equals(config.getEmailAtivo())) {
+            log.info("Envio de e-mail desativado ou configuração não encontrada.");
+            return;
+        }
+
+        try {
+            JavaMailSenderImpl mailSender = new JavaMailSenderImpl();
+            mailSender.setHost(config.getMailHost());
+            mailSender.setPort(config.getMailPort());
+            mailSender.setUsername(config.getMailUsername());
+            mailSender.setPassword(config.getMailPassword());
+
+            Properties props = mailSender.getJavaMailProperties();
+            props.put("mail.transport.protocol", "smtp");
+            props.put("mail.smtp.auth", String.valueOf(config.getMailAuth()));
+            props.put("mail.smtp.starttls.enable", String.valueOf(config.getMailStarttls()));
+            props.put("mail.smtp.ssl.trust", config.getMailHost());
+            props.put("mail.debug", "false");
+
+            MimeMessage message = mailSender.createMimeMessage();
+            MimeMessageHelper helper = new MimeMessageHelper(message, true, "UTF-8");
+
+            String subject = String.format("Pedido %d atualizado - %s", pedido.getId(), pedido.getUsuario().getNome());
+            helper.setSubject(subject);
+            helper.setFrom(config.getMailUsername());
+            
+            // Notificamos tanto o cliente quanto os e-mails de notificação
+            String[] destinatarios = (pedido.getUsuario().getEmail() + "," + config.getEmailsNotificacao()).split(",");
+            helper.setTo(destinatarios);
+
+            String content = buildOrderUpdatedEmailContent(pedido);
+            helper.setText(content, true);
+
+            mailSender.send(message);
+            log.info("E-mail de atualização enviado com sucesso para o pedido #{}", pedido.getId());
+
+        } catch (Exception e) {
+            log.error("Erro ao enviar e-mail de atualização para o pedido #{}: {}", pedido.getId(), e.getMessage());
+            throw new RuntimeException("Falha no envio de e-mail de atualização", e);
+        }
+    }
+
+    @Async
+    @Retryable(value = Exception.class, maxAttempts = 3, backoff = @Backoff(delay = 5000))
     public void enviarEmailNotaFiscalDisponivel(Pedido pedido) {
         log.info("Iniciando tentativa de envio de e-mail de nota fiscal para o pedido #{}", pedido.getId());
 
@@ -210,6 +303,43 @@ public class EmailService {
         return sb.toString();
     }
 
+    private String buildOrderUpdatedEmailContent(Pedido pedido) {
+        DateTimeFormatter formatter = DateTimeFormatter.ofPattern("dd/MM/yyyy HH:mm:ss");
+        String dataFormatada = LocalDateTime.now(ZoneId.of("America/Sao_Paulo")).format(formatter);
+
+        StringBuilder sb = new StringBuilder();
+        sb.append("<div style='font-family: Arial, sans-serif; color: #333;'>");
+        sb.append("<h1 style='color: #c5a059;'>Atualização no Seu Pedido!</h1>");
+        sb.append("<p>Olá, <strong>").append(pedido.getUsuario().getNome()).append("</strong>.</p>");
+        sb.append("<p>Informamos que houveram atualizações no seu pedido <strong>#").append(pedido.getId()).append("</strong>.</p>");
+        sb.append("<p><strong>Data da Atualização:</strong> ").append(dataFormatada).append("</p>");
+        sb.append("<p><strong>Observação atual:</strong> ")
+                .append(pedido.getObservacao() != null ? pedido.getObservacao() : "-").append("</p>");
+
+        sb.append("<h3>Detalhes Atualizados do Pedido:</h3>");
+        sb.append(buildProductTable(pedido));
+
+        if (pedido.getPagamentos() != null && !pedido.getPagamentos().isEmpty()) {
+            sb.append("<h3>Plano de Pagamento Atualizado:</h3>");
+            sb.append(buildPaymentTable(pedido));
+        }
+
+        sb.append("<div style='margin-top: 20px;'>");
+        sb.append("<p><strong>Frete:</strong> R$ ").append(String.format("%.2f", pedido.getFrete().doubleValue()))
+                .append("</p>");
+        sb.append("<p><strong>Desconto:</strong> ").append(String.format("%.2f", pedido.getDesconto().doubleValue()))
+                .append("%</p>");
+        sb.append("<p style='font-size: 1.2em;'><strong>Valor Total:</strong> R$ ")
+                .append(String.format("%.2f", pedido.getValorTotal().doubleValue())).append("</p>");
+        sb.append("</div>");
+        
+        sb.append("<p>Para mais detalhes, acesse nosso sistema.</p>");
+        sb.append("<p><small>Este é um e-mail automático, por favor não responda.</small></p>");
+        sb.append("</div>");
+
+        return sb.toString();
+    }
+
     private String buildOrderEmailContent(Pedido pedido) {
         DateTimeFormatter formatter = DateTimeFormatter.ofPattern("dd/MM/yyyy HH:mm:ss");
         String dataFormatada = pedido.getDataPedido().format(formatter);
@@ -224,6 +354,11 @@ public class EmailService {
 
         sb.append("<h3>Itens do Pedido:</h3>");
         sb.append(buildProductTable(pedido));
+
+        if (pedido.getPagamentos() != null && !pedido.getPagamentos().isEmpty()) {
+            sb.append("<h3>Plano de Pagamento:</h3>");
+            sb.append(buildPaymentTable(pedido));
+        }
 
         sb.append("<div style='margin-top: 20px;'>");
         sb.append("<p><strong>Frete:</strong> R$ ").append(String.format("%.2f", pedido.getFrete().doubleValue()))
@@ -292,6 +427,69 @@ public class EmailService {
                     .append(vTotalParts[1]).append("</td>");
             sb.append("</tr></table></td>");
 
+            sb.append("</tr>");
+        }
+
+        sb.append("</tbody></table>");
+        return sb.toString();
+    }
+
+    private String buildOrderConfirmedEmailContent(Pedido pedido) {
+        DateTimeFormatter formatter = DateTimeFormatter.ofPattern("dd/MM/yyyy HH:mm:ss");
+        String dataFormatada = pedido.getDataPedido().format(formatter);
+
+        StringBuilder sb = new StringBuilder();
+        sb.append("<div style='font-family: Arial, sans-serif; color: #333;'>");
+        sb.append("<h1 style='color: #28a745;'>Pedido Confirmado!</h1>");
+        sb.append("<p>Olá, <strong>").append(pedido.getUsuario().getNome()).append("</strong>.</p>");
+        sb.append("<p>Seu pedido foi confirmado pelo administrador e já está seguindo para a próxima etapa.</p>");
+        sb.append("<p><strong>Número do Pedido:</strong> #").append(pedido.getId()).append("</p>");
+        sb.append("<p><strong>Data Original:</strong> ").append(dataFormatada).append("</p>");
+        
+        if (pedido.getFormaPagamento() != null) {
+            sb.append("<p><strong>Forma de Pagamento:</strong> ").append(pedido.getFormaPagamento().getDescricao()).append("</p>");
+        }
+
+        sb.append("<h3>Itens do Pedido:</h3>");
+        sb.append(buildProductTable(pedido));
+
+        if (pedido.getPagamentos() != null && !pedido.getPagamentos().isEmpty()) {
+            sb.append("<h3>Plano de Pagamento:</h3>");
+            sb.append(buildPaymentTable(pedido));
+        }
+
+        sb.append("<div style='margin-top: 20px;'>");
+        sb.append("<p><strong>Frete:</strong> R$ ").append(String.format("%.2f", pedido.getFrete().doubleValue()))
+                .append("</p>");
+        sb.append("<p><strong>Desconto:</strong> ").append(String.format("%.2f", pedido.getDesconto().doubleValue()))
+                .append("%</p>");
+        sb.append("<p style='font-size: 1.2em;'><strong>Valor Total:</strong> R$ ")
+                .append(String.format("%.2f", pedido.getValorTotal().doubleValue())).append("</p>");
+        sb.append("</div>");
+        
+        sb.append("<p><small>Em caso de dúvidas, entre em contato conosco.</small></p>");
+        sb.append("</div>");
+
+        return sb.toString();
+    }
+
+    private String buildPaymentTable(Pedido pedido) {
+        StringBuilder sb = new StringBuilder();
+        sb.append("<table border='1' style='border-collapse: collapse; width: 30%; font-family: Arial, sans-serif;'>");
+        sb.append("<thead><tr style='background-color: #f2f2f2;'>");
+        sb.append("<th style='width: 20%;'>Parc.</th><th style='text-align: center; width: 45%;'>Vencimento</th><th style='text-align: right; width: 35%;'>Valor R$</th>");
+        sb.append("</tr></thead><tbody>");
+
+        java.util.List<com.sara.api.model.Pagamento> pagamentos = new java.util.ArrayList<>(pedido.getPagamentos());
+        pagamentos.sort(java.util.Comparator.comparing(com.sara.api.model.Pagamento::getDataVencimento, java.util.Comparator.nullsLast(java.util.Comparator.naturalOrder())));
+
+        int i = 1;
+        DateTimeFormatter dateOnly = DateTimeFormatter.ofPattern("dd/MM/yyyy");
+        for (com.sara.api.model.Pagamento p : pagamentos) {
+            sb.append("<tr>");
+            sb.append("<td style='text-align: center; padding: 5px;'>").append(i++).append("ª</td>");
+            sb.append("<td style='text-align: center; padding: 5px;'>").append(p.getDataVencimento() != null ? p.getDataVencimento().format(dateOnly) : "-").append("</td>");
+            sb.append("<td style='text-align: right; padding: 5px;'>").append(String.format("%.2f", p.getValor().doubleValue()).replace(".", ",")).append("</td>");
             sb.append("</tr>");
         }
 

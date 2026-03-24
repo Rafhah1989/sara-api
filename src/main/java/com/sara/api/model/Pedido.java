@@ -68,6 +68,9 @@ public class Pedido {
     private String notaFiscalPath;
 
     @OneToMany(mappedBy = "pedido", cascade = CascadeType.ALL, orphanRemoval = true)
+    private List<Pagamento> pagamentos = new ArrayList<>();
+
+    @OneToMany(mappedBy = "pedido", cascade = CascadeType.ALL, orphanRemoval = true)
     private List<PedidoProduto> produtos = new ArrayList<>();
 
     @PrePersist

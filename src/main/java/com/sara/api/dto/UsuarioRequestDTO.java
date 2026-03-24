@@ -72,4 +72,13 @@ public class UsuarioRequestDTO {
 
     @Schema(description = "Método de pagamento autorizado para o usuário", example = "APENAS_NA_ENTREGA")
     private com.sara.api.model.MetodoPagamentoAutorizado metodoPagamentoAutorizado;
+
+    @Schema(description = "Permite parcelamento para o usuário", example = "false")
+    private Boolean permitirParcelamento;
+
+    @Schema(description = "Lista de IDs das opções de parcelamento permitidas")
+    private java.util.List<Long> opcoesParcelamentoIds;
+
+    @Schema(description = "Ativa o desconto à vista da forma de pagamento para este usuário", example = "false")
+    private Boolean ativarDescontoAVista;
 }
