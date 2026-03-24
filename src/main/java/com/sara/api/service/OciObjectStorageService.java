@@ -76,10 +76,14 @@ public class OciObjectStorageService {
     }
 
     public void uploadFile(String objectName, InputStream inputStream, long contentLength, String contentType) {
+        uploadFile(bucketName, objectName, inputStream, contentLength, contentType);
+    }
+
+    public void uploadFile(String targetBucketName, String objectName, InputStream inputStream, long contentLength, String contentType) {
         if (client == null) throw new IllegalStateException("OCI Client not initialized");
 
         PutObjectRequest request = PutObjectRequest.builder()
-                .bucketName(bucketName)
+                .bucketName(targetBucketName)
                 .namespaceName(namespaceName)
                 .objectName(objectName)
                 .putObjectBody(inputStream)
@@ -88,15 +92,19 @@ public class OciObjectStorageService {
                 .build();
 
         client.putObject(request);
-        log.info("File uploaded to OCI: {}", objectName);
+        log.info("File uploaded to OCI bucket {}: {}", targetBucketName, objectName);
     }
 
     public InputStream downloadFile(String objectName) {
+        return downloadFile(bucketName, objectName);
+    }
+
+    public InputStream downloadFile(String targetBucketName, String objectName) {
         if (client == null) throw new IllegalStateException("OCI Client not initialized");
 
         GetObjectRequest request = GetObjectRequest.builder()
                 .namespaceName(namespaceName)
-                .bucketName(bucketName)
+                .bucketName(targetBucketName)
                 .objectName(objectName)
                 .build();
 
@@ -105,15 +113,24 @@ public class OciObjectStorageService {
     }
 
     public void deleteFile(String objectName) {
+        deleteFile(bucketName, objectName);
+    }
+
+    public void deleteFile(String targetBucketName, String objectName) {
         if (client == null) throw new IllegalStateException("OCI Client not initialized");
 
         DeleteObjectRequest request = DeleteObjectRequest.builder()
                 .namespaceName(namespaceName)
-                .bucketName(bucketName)
+                .bucketName(targetBucketName)
                 .objectName(objectName)
                 .build();
 
         client.deleteObject(request);
-        log.info("File deleted from OCI: {}", objectName);
+        log.info("File deleted from OCI bucket {}: {}", targetBucketName, objectName);
+    }
+
+    public String getPublicUrl(String targetBucketName, String objectName) {
+        return String.format("https://%s.objectstorage.%s.oci.customer-oci.com/n/%s/b/%s/o/%s",
+                namespaceName, region, namespaceName, targetBucketName, objectName);
     }
 }

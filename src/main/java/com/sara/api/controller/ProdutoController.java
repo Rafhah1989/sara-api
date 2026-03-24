@@ -16,6 +16,10 @@ import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
 
+import org.springframework.beans.factory.annotation.Value;
+import org.springframework.security.access.prepost.PreAuthorize;
+import com.sara.api.service.OciObjectStorageService;
+
 @RestController
 @RequestMapping("/api/produtos")
 @Tag(name = "Produtos", description = "Endpoints para gestão do catálogo de produtos")
@@ -26,6 +30,21 @@ public class ProdutoController {
 
     @Autowired
     private ProdutoPdfService pdfService;
+
+    @Autowired
+    private OciObjectStorageService ociService;
+
+    @Value("${oci.bucket.name.products:sara_produtos}")
+    private String productsBucket;
+
+    @GetMapping("/imagem/{nomeArquivo}")
+    @Operation(summary = "Download da imagem do produto", description = "Redireciona para a URL pública da imagem no OCI")
+    public ResponseEntity<Void> baixarImagem(@PathVariable("nomeArquivo") String nomeArquivo) {
+        String url = ociService.getPublicUrl(productsBucket, nomeArquivo);
+        return ResponseEntity.status(org.springframework.http.HttpStatus.FOUND)
+                .location(java.net.URI.create(url))
+                .build();
+    }
 
     @GetMapping("/catalogo")
     @Operation(summary = "Gerar catálogo PDF", description = "Gera um PDF com todos os produtos para rascunho de pedido")
@@ -116,5 +135,13 @@ public class ProdutoController {
     public ResponseEntity<Void> excluir(@PathVariable("id") Long id) {
         produtoService.excluir(id);
         return ResponseEntity.noContent().build();
+    }
+
+    @PostMapping("/migrar-base64-oci")
+    @PreAuthorize("hasAuthority('ADMIN')")
+    @Operation(summary = "Migrar Base64", description = "Migra todas as imagens Base64 no banco legadas para OCI (apenas ADMIN)")
+    public ResponseEntity<String> migrarImagensLote() {
+        int migradas = produtoService.migrarImagensEmLote();
+        return ResponseEntity.ok("Migração em lote finalizada. Total de produtos migrados: " + migradas);
     }
 }

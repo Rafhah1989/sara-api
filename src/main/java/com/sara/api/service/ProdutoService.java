@@ -15,6 +15,7 @@ import jakarta.persistence.criteria.Predicate;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
+import org.springframework.beans.factory.annotation.Value;
 
 @Service
 public class ProdutoService {
@@ -22,9 +23,68 @@ public class ProdutoService {
     @Autowired
     private ProdutoRepository produtoRepository;
 
+    @Autowired
+    private OciObjectStorageService ociService;
+
+    @Value("${oci.bucket.name.products:sara_produtos}")
+    private String productsBucket;
+
+    private void processarImagem(Produto produto) {
+        String base64Image = produto.getImagem();
+        if (base64Image != null && base64Image.startsWith("data:image")) {
+            try {
+                String[] parts = base64Image.split(",");
+                String metadata = parts[0];
+                String payload = parts[1];
+                
+                String ext = "jpeg";
+                if (metadata.contains("image/png")) ext = "png";
+                else if (metadata.contains("image/gif")) ext = "gif";
+                else if (metadata.contains("image/webp")) ext = "webp";
+                
+                String fileName = produto.getId() + "_imagem." + ext;
+                byte[] decodedBytes = java.util.Base64.getDecoder().decode(payload);
+                
+                try (java.io.ByteArrayInputStream bis = new java.io.ByteArrayInputStream(decodedBytes)) {
+                    ociService.uploadFile(productsBucket, fileName, bis, decodedBytes.length, "image/" + ext);
+                }
+                
+                produto.setImagem(fileName);
+                produtoRepository.save(produto);
+            } catch (Exception e) {
+                System.err.println("Erro ao processar imagem para o OCI: " + e.getMessage());
+            }
+        }
+    }
+
+    public int migrarImagensEmLote() {
+        List<Produto> produtos = produtoRepository.findAll();
+        int count = 0;
+        for (Produto p : produtos) {
+            if (p.getImagem() != null && p.getImagem().startsWith("data:image")) {
+                processarImagem(p);
+                count++;
+            }
+        }
+        return count;
+    }
+
     public Produto salvar(Produto produto) {
         validar(produto);
-        return produtoRepository.save(produto);
+        String imagemOriginal = produto.getImagem();
+        if (imagemOriginal != null && imagemOriginal.startsWith("data:image")) {
+            produto.setImagem(null);
+        }
+        Produto salvo = produtoRepository.save(produto);
+        
+        if (imagemOriginal != null && imagemOriginal.startsWith("data:image")) {
+            salvo.setImagem(imagemOriginal);
+            processarImagem(salvo);
+        } else {
+            salvo.setImagem(imagemOriginal);
+            salvo = produtoRepository.save(salvo);
+        }
+        return salvo;
     }
 
     public List<ProdutoMiniDTO> buscarPorNomeMini(String nome) {
@@ -58,10 +118,24 @@ public class ProdutoService {
                     produto.setNome(produtoAtualizado.getNome());
                     produto.setTamanho(produtoAtualizado.getTamanho());
                     produto.setAtivo(produtoAtualizado.getAtivo());
-                    produto.setImagem(produtoAtualizado.getImagem());
                     produto.setCodigo(produtoAtualizado.getCodigo());
                     produto.setPeso(produtoAtualizado.getPeso());
                     produto.setPreco(produtoAtualizado.getPreco());
+
+                    String novaImagem = produtoAtualizado.getImagem();
+                    if (novaImagem != null && novaImagem.startsWith("data:image")) {
+                        produto.setImagem(novaImagem);
+                        Produto salvado = produtoRepository.save(produto);
+                        processarImagem(salvado);
+                        return salvado;
+                    } else if (novaImagem == null || novaImagem.isEmpty()) {
+                        if (produto.getImagem() != null && !produto.getImagem().isEmpty() && !produto.getImagem().startsWith("data:image")) {
+                            try {
+                                ociService.deleteFile(productsBucket, produto.getImagem());
+                            } catch (Exception e) {}
+                        }
+                        produto.setImagem("");
+                    }
                     return produtoRepository.save(produto);
                 })
                 .orElseThrow(() -> new ValidationException("Produto não encontrado com id: " + id));
@@ -74,7 +148,14 @@ public class ProdutoService {
     }
 
     public void excluir(Long id) {
-        produtoRepository.deleteById(id);
+        produtoRepository.findById(id).ifPresent(p -> {
+            if (p.getImagem() != null && !p.getImagem().isEmpty() && !p.getImagem().startsWith("data:image")) {
+                try {
+                    ociService.deleteFile(productsBucket, p.getImagem());
+                } catch (Exception e) {}
+            }
+            produtoRepository.delete(p);
+        });
     }
 
     public Page<ProdutoResumoDTO> buscarParaLoja(String nome, List<Integer> tamanhos, Double precoMin, Double precoMax, Pageable pageable) {
