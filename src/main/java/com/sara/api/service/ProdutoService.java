@@ -12,7 +12,11 @@ import org.springframework.data.jpa.domain.Specification;
 import org.springframework.stereotype.Service;
 
 import jakarta.persistence.criteria.Predicate;
+import org.springframework.transaction.annotation.Propagation;
+import org.springframework.transaction.annotation.Transactional;
+import java.io.ByteArrayInputStream;
 import java.util.ArrayList;
+import java.util.Base64;
 import java.util.List;
 import java.util.Optional;
 import org.springframework.beans.factory.annotation.Value;
@@ -57,13 +61,23 @@ public class ProdutoService {
         }
     }
 
+    @Transactional(propagation = Propagation.REQUIRES_NEW)
+    public void migrarProdutoIndividual(Long id) {
+        Optional<Produto> op = produtoRepository.findById(id);
+        if (op.isPresent()) {
+            processarImagem(op.get());
+        }
+    }
+
     public int migrarImagensEmLote() {
-        List<Produto> produtos = produtoRepository.findAll();
+        List<Long> ids = produtoRepository.findIdsComImagemBase64();
         int count = 0;
-        for (Produto p : produtos) {
-            if (p.getImagem() != null && p.getImagem().startsWith("data:image")) {
-                processarImagem(p);
+        for (Long id : ids) {
+            try {
+                migrarProdutoIndividual(id);
                 count++;
+            } catch (Exception e) {
+                System.err.println("Erro ao migrar produto " + id + ": " + e.getMessage());
             }
         }
         return count;

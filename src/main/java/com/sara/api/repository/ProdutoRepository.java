@@ -32,4 +32,7 @@ public interface ProdutoRepository extends JpaRepository<Produto, Long>, JpaSpec
 
     @org.springframework.data.jpa.repository.Query("SELECT DISTINCT p.tamanho FROM Produto p WHERE p.ativo = true ORDER BY p.tamanho ASC")
     List<Integer> findDistinctTamanhosAtivos();
+
+    @org.springframework.data.jpa.repository.Query("SELECT p.id FROM Produto p WHERE p.imagem LIKE 'data:image%'")
+    List<Long> findIdsComImagemBase64();
 }
