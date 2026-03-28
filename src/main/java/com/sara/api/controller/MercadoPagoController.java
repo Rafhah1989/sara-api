@@ -1,9 +1,11 @@
 package com.sara.api.controller;
 
 import com.sara.api.exception.ValidationException;
-import com.sara.api.model.Pedido;
+import com.sara.api.model.Pagamento;
+import com.sara.api.repository.PagamentoRepository;
 import com.sara.api.repository.PedidoRepository;
 import com.sara.api.service.MercadoPagoService;
+import com.sara.api.service.PedidoService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import lombok.RequiredArgsConstructor;
@@ -21,7 +23,8 @@ import java.util.Map;
 public class MercadoPagoController {
 
     private final MercadoPagoService mercadoPagoService;
-    private final PedidoRepository pedidoRepository;
+    private final PagamentoRepository pagamentoRepository;
+    private final PedidoService pedidoService;
 
     @PostMapping("/webhook")
     @Operation(summary = "Webhook do Mercado Pago", description = "Recebe notificações de alteração de status de pagamento (JSON ou Form)")
@@ -37,27 +40,27 @@ public class MercadoPagoController {
         return ResponseEntity.ok().build();
     }
 
-    @PostMapping("/verificar-pagamento/{idPedido}")
-    @Operation(summary = "Verificação manual de pagamento", description = "Consulta o status do pagamento no Mercado Pago e atualiza o pedido")
-    public ResponseEntity<Map<String, Object>> verificarManual(@PathVariable Long idPedido) {
-        Pedido pedido = pedidoRepository.findById(idPedido)
-                .orElseThrow(() -> new ValidationException("Pedido não encontrado", HttpStatus.NOT_FOUND));
+    @PostMapping("/verificar-pagamento/{idPagamento}")
+    @Operation(summary = "Verificação manual de pagamento", description = "Consulta o status do pagamento no Mercado Pago e atualiza a parcela")
+    public ResponseEntity<Map<String, Object>> verificarManual(@PathVariable Long idPagamento) {
+        Pagamento pagamento = pagamentoRepository.findById(idPagamento)
+                .orElseThrow(() -> new ValidationException("Pagamento não encontrado", HttpStatus.NOT_FOUND));
 
-        if (pedido.getMercadopagoPagamentoId() == null) {
+        if (pagamento.getMercadopagoPagamentoId() == null) {
             Map<String, Object> error = new HashMap<>();
-            error.put("error", "Pedido não possui ID de pagamento associado");
+            error.put("error", "Vencimento não possui ID de pagamento associado");
             return ResponseEntity.badRequest().body(error);
         }
 
-        String status = mercadoPagoService.verificarStatusPagamento(pedido.getMercadopagoPagamentoId());
+        String status = mercadoPagoService.verificarStatusPagamento(pagamento.getMercadopagoPagamentoId());
         
         // Recarrega para ver o status atual
-        pedido = pedidoRepository.findById(idPedido).get();
+        pagamento = pagamentoRepository.findById(idPagamento).get();
         
         Map<String, Object> response = new HashMap<>();
-        response.put("idPedido", idPedido);
+        response.put("idPagamento", idPagamento);
         response.put("status", status);
-        response.put("pago", pedido.getPago());
+        response.put("pago", pagamento.getPago());
         
         return ResponseEntity.ok(response);
     }

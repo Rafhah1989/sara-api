@@ -4,6 +4,7 @@ import com.sara.api.model.SituacaoPedido;
 import io.swagger.v3.oas.annotations.media.Schema;
 import lombok.Data;
 import java.math.BigDecimal;
+import java.time.LocalDate;
 import java.time.LocalDateTime;
 
 @Data
@@ -20,4 +21,7 @@ public class PedidoListResponseDTO {
     private Boolean cancelado;
     private Boolean pagamentoOnline;
     private String notaFiscalPath;
+    private String numeroNotaFiscal;
+    private LocalDate dataFaturamento;
+    private java.util.List<PagamentoResponseDTO> pagamentos;
 }

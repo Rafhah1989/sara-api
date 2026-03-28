@@ -21,7 +21,6 @@ public interface PedidoRepository extends JpaRepository<Pedido, Long>, JpaSpecif
     Page<Pedido> findAll(Specification<Pedido> spec, Pageable pageable);
     @EntityGraph(attributePaths = {"usuario", "formaPagamento"})
     List<Pedido> findByUsuarioId(Long usuarioId);
-    java.util.Optional<Pedido> findByMercadopagoPagamentoId(String mercadopagoPagamentoId);
 
     @Query("SELECT p FROM Pedido p " +
             "LEFT JOIN FETCH p.produtos pp " +

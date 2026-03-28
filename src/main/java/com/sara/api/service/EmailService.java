@@ -248,6 +248,17 @@ public class EmailService {
             sb.append("<p>Olá, <strong>").append(pedido.getUsuario().getNome()).append("</strong>.</p>");
             sb.append("<p>Informamos que a Nota Fiscal referente ao seu pedido <strong>#").append(pedido.getId())
                     .append("</strong> já foi emitida e está disponível para consulta.</p>");
+            
+            if (pedido.getNumeroNotaFiscal() != null) {
+                DateTimeFormatter df = DateTimeFormatter.ofPattern("dd/MM/yyyy");
+                sb.append("<div style='background: #f8f9fa; border: 1px solid #dee2e6; padding: 15px; border-radius: 8px; margin: 20px 0;'>");
+                sb.append("<p style='margin: 0;'><strong>Número da Nota Fiscal:</strong> ").append(pedido.getNumeroNotaFiscal()).append("</p>");
+                if (pedido.getDataFaturamento() != null) {
+                    sb.append("<p style='margin: 5px 0 0 0;'><strong>Data de Faturamento:</strong> ").append(pedido.getDataFaturamento().format(df)).append("</p>");
+                }
+                sb.append("</div>");
+            }
+
             sb.append("<p>Acesse o sistema e vá na opção <strong>Pedidos</strong> para baixá-la.</p>");
             sb.append("<br/>");
             sb.append("<p>Atenciosamente,</p>");
@@ -263,6 +274,136 @@ public class EmailService {
             log.error("Erro ao enviar e-mail de nota fiscal para o pedido #{}: {}", pedido.getId(), e.getMessage());
             throw new RuntimeException("Falha no envio de e-mail de nota fiscal", e);
         }
+    }
+
+    @Async
+    @Retryable(value = Exception.class, maxAttempts = 3, backoff = @Backoff(delay = 5000))
+    public void enviarEmailCobrancaPix(Pedido pedido, com.sara.api.model.Pagamento pagamento) {
+        log.info("Iniciando envio de e-mail de cobrança PIX para o pedido #{}", pedido.getId());
+
+        Configuracao config = configuracaoRepository.findAll().stream().findFirst().orElse(null);
+        if (config == null || !Boolean.TRUE.equals(config.getEmailAtivo())) {
+            log.info("Envio de e-mail desativado.");
+            return;
+        }
+
+        try {
+            JavaMailSenderImpl mailSender = createMailSender(config);
+            MimeMessage message = mailSender.createMimeMessage();
+            MimeMessageHelper helper = new MimeMessageHelper(message, true, "UTF-8");
+
+            String subject = String.format("Aguardando Pagamento - Pedido #%d - Parcela PIX", pedido.getId());
+            helper.setSubject(subject);
+            helper.setFrom(config.getMailUsername());
+            helper.setTo(pedido.getUsuario().getEmail());
+
+            StringBuilder sb = new StringBuilder();
+            sb.append("<div style='font-family: Arial, sans-serif; color: #333; line-height: 1.6;'>");
+            sb.append("<h1 style='color: #d4af37;'>Seu código PIX está disponível!</h1>");
+            sb.append("<p>Olá, <strong>").append(pedido.getUsuario().getNome()).append("</strong>.</p>");
+            sb.append("<p>Informamos que o seu pedido <strong>#").append(pedido.getId())
+                    .append("</strong> possui uma parcela PIX aguardando pagamento.</p>");
+            
+            sb.append("<div style='background: #fdf8e6; border: 1px solid #d4af37; padding: 15px; border-radius: 8px; margin: 20px 0;'>");
+            sb.append("<p style='margin: 0;'><strong>Valor da Parcela:</strong> R$ ").append(String.format("%.2f", pagamento.getValor().doubleValue()).replace(".", ",")).append("</p>");
+            sb.append("</div>");
+
+            sb.append("<p>Para realizar o pagamento, por favor <strong>acesse o sistema</strong>, vá em 'Meus Pedidos', localize o pedido #").append(pedido.getId())
+                    .append(" e clique no botão com o ícone de <strong>QR Code (Ver PIX)</strong> para visualizar o código de pagamento atualizado.</p>");
+            sb.append("<br/>");
+            sb.append("<p>Atenciosamente,</p>");
+            sb.append("<p><strong>Equipe Sara Imagens</strong></p>");
+            sb.append("</div>");
+
+            helper.setText(sb.toString(), true);
+            mailSender.send(message);
+            log.info("E-mail de cobrança enviado para o cliente do pedido #{}", pedido.getId());
+
+        } catch (Exception e) {
+            log.error("Erro ao enviar e-mail de cobrança para o pedido #{}: {}", pedido.getId(), e.getMessage());
+        }
+    }
+
+    @Async
+    @Retryable(value = Exception.class, maxAttempts = 3, backoff = @Backoff(delay = 5000))
+    public void enviarEmailPagamentoConfirmado(Pedido pedido, com.sara.api.model.Pagamento pagamento) {
+        log.info("Iniciando envio de e-mails de confirmação de pagamento para o pedido #{}", pedido.getId());
+
+        Configuracao config = configuracaoRepository.findAll().stream().findFirst().orElse(null);
+        if (config == null || !Boolean.TRUE.equals(config.getEmailAtivo())) {
+            log.info("Envio de e-mail desativado.");
+            return;
+        }
+
+        try {
+            JavaMailSenderImpl mailSender = createMailSender(config);
+            DateTimeFormatter formatter = DateTimeFormatter.ofPattern("dd/MM/yyyy HH:mm:ss");
+            String dataConfirmacao = LocalDateTime.now(ZoneId.of("America/Sao_Paulo")).format(formatter);
+
+            // 1. E-mail para o Cliente
+            MimeMessage clientMsg = mailSender.createMimeMessage();
+            MimeMessageHelper clientHelper = new MimeMessageHelper(clientMsg, true, "UTF-8");
+            clientHelper.setSubject(String.format("Pagamento Confirmado - Pedido #%d", pedido.getId()));
+            clientHelper.setFrom(config.getMailUsername());
+            clientHelper.setTo(pedido.getUsuario().getEmail());
+
+            StringBuilder clientSb = new StringBuilder();
+            clientSb.append("<div style='font-family: Arial, sans-serif; color: #333; line-height: 1.6;'>");
+            clientSb.append("<h1 style='color: #28a745;'>Confirmamos seu pagamento!</h1>");
+            clientSb.append("<p>Olá, <strong>").append(pedido.getUsuario().getNome()).append("</strong>.</p>");
+            clientSb.append("<p>Recebemos o pagamento referente a uma parcela do seu pedido <strong>#").append(pedido.getId()).append("</strong>.</p>");
+            clientSb.append("<p><strong>Valor Pago:</strong> R$ ").append(String.format("%.2f", pagamento.getValor().doubleValue()).replace(".", ",")).append("</p>");
+            clientSb.append("<p><strong>Data de Confirmação:</strong> ").append(dataConfirmacao).append("</p>");
+            clientSb.append("<p>Seu pedido seguirá agora para as próximas etapas de processamento. Acompanhe o status pelo nosso sistema.</p>");
+            clientSb.append("<br/><p>Obrigado por comprar conosco!</p>");
+            clientSb.append("<p><strong>Equipe Sara Imagens</strong></p></div>");
+
+            clientHelper.setText(clientSb.toString(), true);
+            mailSender.send(clientMsg);
+
+            // 2. Alerta para Administradores
+            if (config.getEmailsNotificacao() != null && !config.getEmailsNotificacao().isEmpty()) {
+                MimeMessage adminMsg = mailSender.createMimeMessage();
+                MimeMessageHelper adminHelper = new MimeMessageHelper(adminMsg, true, "UTF-8");
+                adminHelper.setSubject(String.format("ALERTA: Pagamento Recebido - Pedido #%d", pedido.getId()));
+                adminHelper.setFrom(config.getMailUsername());
+                adminHelper.setTo(config.getEmailsNotificacao().split(","));
+
+                StringBuilder adminSb = new StringBuilder();
+                adminSb.append("<div style='font-family: Arial, sans-serif; color: #333;'>");
+                adminSb.append("<h2 style='color: #28a745;'>Novo Pagamento Recebido</h2>");
+                adminSb.append("<p><strong>Pedido:</strong> #").append(pedido.getId()).append("</p>");
+                adminSb.append("<p><strong>Cliente:</strong> ").append(pedido.getUsuario().getNome()).append("</p>");
+                adminSb.append("<p><strong>Valor:</strong> R$ ").append(String.format("%.2f", pagamento.getValor().doubleValue()).replace(".", ",")).append("</p>");
+                adminSb.append("<p><strong>Data Sistema:</strong> ").append(dataConfirmacao).append("</p>");
+                adminSb.append("<p>O status da parcela foi atualizado para PAGO automaticamente via integração.</p>");
+                adminSb.append("</div>");
+
+                adminHelper.setText(adminSb.toString(), true);
+                mailSender.send(adminMsg);
+            }
+
+            log.info("E-mails de confirmação enviados para o pedido #{}", pedido.getId());
+
+        } catch (Exception e) {
+            log.error("Erro ao enviar e-mails de confirmação para o pedido #{}: {}", pedido.getId(), e.getMessage());
+        }
+    }
+
+    private JavaMailSenderImpl createMailSender(Configuracao config) {
+        JavaMailSenderImpl mailSender = new JavaMailSenderImpl();
+        mailSender.setHost(config.getMailHost());
+        mailSender.setPort(config.getMailPort());
+        mailSender.setUsername(config.getMailUsername());
+        mailSender.setPassword(config.getMailPassword());
+
+        Properties props = mailSender.getJavaMailProperties();
+        props.put("mail.transport.protocol", "smtp");
+        props.put("mail.smtp.auth", String.valueOf(config.getMailAuth()));
+        props.put("mail.smtp.starttls.enable", String.valueOf(config.getMailStarttls()));
+        props.put("mail.smtp.ssl.trust", config.getMailHost());
+        props.put("mail.debug", "false");
+        return mailSender;
     }
 
     private String buildOrderCanceledEmailContent(Pedido pedido, com.sara.api.model.Usuario responsavel,
@@ -475,9 +616,9 @@ public class EmailService {
 
     private String buildPaymentTable(Pedido pedido) {
         StringBuilder sb = new StringBuilder();
-        sb.append("<table border='1' style='border-collapse: collapse; width: 30%; font-family: Arial, sans-serif;'>");
+        sb.append("<table border='1' style='border-collapse: collapse; width: 24%; font-family: Arial, sans-serif;'>");
         sb.append("<thead><tr style='background-color: #f2f2f2;'>");
-        sb.append("<th style='width: 20%;'>Parc.</th><th style='text-align: center; width: 45%;'>Vencimento</th><th style='text-align: right; width: 35%;'>Valor R$</th>");
+        sb.append("<th style='width: 20%;'>Parc.</th><th style='text-align: center; width: 40%;'>Vencimento</th><th style='text-align: right; width: 40%;'>Valor R$</th>");
         sb.append("</tr></thead><tbody>");
 
         java.util.List<com.sara.api.model.Pagamento> pagamentos = new java.util.ArrayList<>(pedido.getPagamentos());

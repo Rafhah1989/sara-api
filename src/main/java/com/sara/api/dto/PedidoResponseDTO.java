@@ -3,6 +3,7 @@ package com.sara.api.dto;
 import io.swagger.v3.oas.annotations.media.Schema;
 import lombok.Data;
 import java.math.BigDecimal;
+import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.OffsetDateTime;
 import java.util.List;
@@ -53,23 +54,18 @@ public class PedidoResponseDTO {
     @Schema(description = "Indica se o pedido já foi pago", example = "false")
     private Boolean pago;
 
-    @Schema(description = "Código PIX copia e cola", example = "0002010102122687...")
-    private String pixCopiaECola;
-
-    @Schema(description = "QR Code do PIX base64", example = "iVBORw0KGgoAAAANSUhEUgA...")
-    private String pixQrCode;
-
-    @Schema(description = "ID do pagamento no Mercado Pago", example = "123456789")
-    private String mercadopagoPagamentoId;
-
-    @Schema(description = "Indica se o pagamento será feito online", example = "true")
-    private Boolean pagamentoOnline;
-
-    @Schema(description = "Data de expiração do PIX", example = "2023-10-27T11:15:30Z")
-    private OffsetDateTime dataExpiracaoPix;
 
     @Schema(description = "Caminho ou nome do arquivo da Nota Fiscal no OCI", example = "nota_pedido_1_cliente_1.pdf")
     private String notaFiscalPath;
+
+    @Schema(description = "Número da Nota Fiscal", example = "123456")
+    private String numeroNotaFiscal;
+
+    @Schema(description = "Data de faturamento do pedido", example = "2023-10-27")
+    private LocalDate dataFaturamento;
+
+    @Schema(description = "Indica se o pedido tem algum pagamento online pendente", example = "true")
+    private Boolean pagamentoOnline;
 
     @Schema(description = "Lista detalhada dos produtos no pedido")
     private List<PedidoProdutoResponseDTO> produtos;

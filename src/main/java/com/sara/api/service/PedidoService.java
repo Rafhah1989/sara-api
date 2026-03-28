@@ -16,6 +16,8 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.core.io.InputStreamResource;
 import org.springframework.web.multipart.MultipartFile;
+import org.springframework.context.annotation.Lazy;
+import org.springframework.beans.factory.annotation.Autowired;
 import java.io.IOException;
 
 import java.math.BigDecimal;
@@ -35,7 +37,11 @@ public class PedidoService {
     private final ProdutoRepository produtoRepository;
     private final FormaPagamentoRepository formaPagamentoRepository;
     private final EmailService emailService;
-    private final MercadoPagoService mercadoPagoService;
+    
+    @Autowired
+    @Lazy
+    private MercadoPagoService mercadoPagoService;
+    
     private final OciObjectStorageService ociService;
     private final PagamentoRepository pagamentoRepository;
 
@@ -213,21 +219,23 @@ public class PedidoService {
 
         Pedido saved = pedidoRepository.save(pedido);
 
-        if (saved.getPagamentoOnline() == null) {
-            saved.setPagamentoOnline(false);
+        // Garante que pelo menos um pagamento seja gerado se a lista estiver vazia
+        if (saved.getPagamentos() == null || saved.getPagamentos().isEmpty()) {
+            Pagamento unico = new Pagamento();
+            unico.setPedido(saved);
+            unico.setValor(saved.getValorTotal());
+            unico.setDataVencimento(LocalDate.now());
+            unico.setPago(false);
+            unico.setPagamentoOnline(Boolean.TRUE.equals(request.getPagamentoOnline()));
+            unico.setFormaPagamento(saved.getFormaPagamento());
+            pagamentoRepository.save(unico);
+            saved.getPagamentos().add(unico);
         }
 
-        // Garante que se não for PIX, não pode ser online (dupla checagem)
-        if (Boolean.TRUE.equals(saved.getPagamentoOnline())) {
-            boolean isPix = saved.getFormaPagamento() != null && 
-                           "PIX".equalsIgnoreCase(saved.getFormaPagamento().getDescricao());
-            if (!isPix) {
-                saved.setPagamentoOnline(false);
-                pedidoRepository.save(saved);
-            }
+        // Tenta gerar PIX para cada pagamento marcado como online
+        for (Pagamento p : saved.getPagamentos()) {
+            gerarPagamentoPixSeNecessario(p);
         }
-
-        gerarPagamentoPixSeNecessario(saved);
 
         // Busca o pedido carregando todos os produtos e detalhes para evitar LazyInitializationException no e-mail assíncrono
         Pedido savedCompleto = findByIdWithAll(saved.getId());
@@ -273,6 +281,11 @@ public class PedidoService {
         }
 
         Pedido updated = pedidoRepository.saveAndFlush(pedido);
+        
+        // Tenta gerar PIX para cada pagamento marcado como online
+        for (Pagamento p : updated.getPagamentos()) {
+            gerarPagamentoPixSeNecessario(p);
+        }
 
         if (Boolean.TRUE.equals(request.getNotificar())) {
             emailService.enviarEmailPedidoAtualizado(updated);
@@ -328,6 +341,7 @@ public class PedidoService {
             }
         }
         
+        syncStatusPedido(pedido);
         pedidoRepository.save(pedido);
         
         if (enviarEmail) {
@@ -354,6 +368,7 @@ public class PedidoService {
         Pedido pedido = pedidoRepository.findById(id)
                 .orElseThrow(() -> new EntityNotFoundException("Pedido não encontrado"));
         pedido.setSituacao(novaSituacao);
+        syncStatusPedido(pedido);
         pedidoRepository.save(pedido);
     }
 
@@ -369,20 +384,20 @@ public class PedidoService {
 
 
         if (request.getFormaPagamentoId() != null) {
+            // Clientes não podem alterar a forma de pagamento de um pedido já existente
+            if (pedido.getId() != null && pedido.getFormaPagamento() != null) {
+                var auth = SecurityContextHolder.getContext().getAuthentication();
+                if (auth != null && auth.getPrincipal() instanceof Usuario user) {
+                    if (user.getRole() == Role.CLIENTE && !pedido.getFormaPagamento().getId().equals(request.getFormaPagamentoId())) {
+                        throw new IllegalArgumentException("Clientes não podem alterar a forma de pagamento de um pedido já existente.");
+                    }
+                }
+            }
             FormaPagamento fp = formaPagamentoRepository.findById(request.getFormaPagamentoId())
                     .orElseThrow(() -> new EntityNotFoundException("Forma de pagamento não encontrada"));
             pedido.setFormaPagamento(fp);
         }
 
-        if (request.getPagamentoOnline() != null) {
-            boolean isPix = false;
-            if (pedido.getFormaPagamento() != null) {
-                String desc = pedido.getFormaPagamento().getDescricao();
-                isPix = desc != null && desc.equalsIgnoreCase("PIX");
-            }
-            // Regra: Somente PIX pode ser online por enquanto
-            pedido.setPagamentoOnline(request.getPagamentoOnline() && isPix);
-        }
 
         if (request.getPagamentos() != null) {
             // Limpa a lista atual para que o orphanRemoval do Hibernate cuide das exclusões
@@ -393,6 +408,7 @@ public class PedidoService {
                 p.setValor(pDTO.getValor());
                 p.setDataVencimento(pDTO.getDataVencimento());
                 p.setPago(Boolean.TRUE.equals(pDTO.getPago()));
+                p.setPagamentoOnline(Boolean.TRUE.equals(pDTO.getPagamentoOnline()));
                 
                 if (pDTO.getFormaPagamentoId() != null) {
                     p.setFormaPagamento(formaPagamentoRepository.getReferenceById(pDTO.getFormaPagamentoId()));
@@ -404,34 +420,30 @@ public class PedidoService {
                 pedido.getPagamentos().add(p);
             }
         }
+        
+        // Regra: Sempre deve haver ao menos um pagamento
+        if (pedido.getPagamentos().isEmpty()) {
+            Pagamento p = new Pagamento();
+            p.setPedido(pedido);
+            p.setValor(pedido.getValorTotal());
+            p.setDataVencimento(LocalDate.now());
+            p.setPago(false);
+            p.setPagamentoOnline(Boolean.TRUE.equals(request.getPagamentoOnline()));
+            p.setFormaPagamento(pedido.getFormaPagamento());
+            pedido.getPagamentos().add(p);
+        }
 
-        // Se houver pagamentos (parcelamento), o status 'pago' do pedido depende de todas as parcelas estarem pagas.
-        if (pedido.getPagamentos() != null && !pedido.getPagamentos().isEmpty()) {
-            boolean todasPagas = pedido.getPagamentos().stream().allMatch(p -> Boolean.TRUE.equals(p.getPago()));
+        syncStatusPedido(pedido);
+    }
+
+    public void syncStatusPedido(Pedido pedido) {
+        if (pedido.getPagamentos() != null) {
+            boolean todasPagas = pedido.getPagamentos().stream()
+                    .allMatch(p -> Boolean.TRUE.equals(p.getPago()));
             pedido.setPago(todasPagas);
-        } else {
-            // Se não houver lista de parcelas, usa o valor vindo do DTO (caso geral)
-            pedido.setPago(Boolean.TRUE.equals(request.getPago()));
         }
     }
 
-    private PedidoProduto createPedidoProduto(PedidoProdutoRequestDTO dto, Pedido pedido) {
-        Produto produto = produtoRepository.findById(dto.getProdutoId())
-                .orElseThrow(() -> new EntityNotFoundException("Produto não encontrado: " + dto.getProdutoId()));
-
-        PedidoProduto item = new PedidoProduto();
-        item.setPedido(pedido);
-        item.setProduto(produto);
-        item.setValor(dto.getValor());
-        item.setQuantidade(dto.getQuantidade());
-        item.setDesconto(dto.getDesconto());
-        if (produto.getPeso() != null) {
-            item.setPeso(BigDecimal.valueOf(produto.getPeso()));
-        } else {
-            item.setPeso(BigDecimal.ZERO);
-        }
-        return item;
-    }
 
     private PedidoListResponseDTO convertToSummaryDTO(Pedido pedido) {
         PedidoListResponseDTO response = new PedidoListResponseDTO();
@@ -446,8 +458,34 @@ public class PedidoService {
         }
         response.setDataPedido(pedido.getDataPedido());
         response.setPago(pedido.getPago());
-        response.setPagamentoOnline(pedido.getPagamentoOnline());
+        
+        // Indica se tem algum pagamento online pendente
+        boolean temOnline = pedido.getPagamentos().stream()
+                .anyMatch(p -> Boolean.TRUE.equals(p.getPagamentoOnline()));
+        response.setPagamentoOnline(temOnline);
+        
         response.setNotaFiscalPath(pedido.getNotaFiscalPath());
+        response.setNumeroNotaFiscal(pedido.getNumeroNotaFiscal());
+        response.setDataFaturamento(pedido.getDataFaturamento());
+        
+        response.setPagamentos(pedido.getPagamentos().stream().map(p -> {
+            PagamentoResponseDTO pDTO = new PagamentoResponseDTO();
+            pDTO.setId(p.getId());
+            pDTO.setDataVencimento(p.getDataVencimento());
+            pDTO.setPago(p.getPago());
+            pDTO.setValor(p.getValor());
+            pDTO.setPagamentoOnline(p.getPagamentoOnline());
+            pDTO.setPixCopiaECola(p.getPixCopiaECola());
+            pDTO.setPixQrCode(p.getPixQrCode());
+            pDTO.setMercadopagoPagamentoId(p.getMercadopagoPagamentoId());
+            pDTO.setDataExpiracaoPix(p.getDataExpiracaoPix());
+            if (p.getFormaPagamento() != null) {
+                pDTO.setFormaPagamentoId(p.getFormaPagamento().getId());
+                pDTO.setFormaPagamentoDescricao(p.getFormaPagamento().getDescricao());
+            }
+            return pDTO;
+        }).collect(java.util.stream.Collectors.toList()));
+
         return response;
     }
 
@@ -467,13 +505,15 @@ public class PedidoService {
         }
         response.setDataPedido(pedido.getDataPedido());
         response.setPago(pedido.getPago());
-        response.setPixCopiaECola(pedido.getPixCopiaECola());
-        response.setPixQrCode(pedido.getPixQrCode());
-        response.setMercadopagoPagamentoId(pedido.getMercadopagoPagamentoId());
-        response.setPagamentoOnline(pedido.getPagamentoOnline());
-        response.setDataExpiracaoPix(pedido.getDataExpiracaoPix());
         response.setNotaFiscalPath(pedido.getNotaFiscalPath());
-
+        response.setNumeroNotaFiscal(pedido.getNumeroNotaFiscal());
+        response.setDataFaturamento(pedido.getDataFaturamento());
+        
+        // Indica se tem algum pagamento online
+        boolean temOnline = pedido.getPagamentos().stream()
+                .anyMatch(p -> Boolean.TRUE.equals(p.getPagamentoOnline()));
+        response.setPagamentoOnline(temOnline);
+        
         if (pedido.getFormaPagamento() != null) {
             response.setFormaPagamentoId(pedido.getFormaPagamento().getId());
             response.setFormaPagamentoDescricao(pedido.getFormaPagamento().getDescricao());
@@ -494,6 +534,12 @@ public class PedidoService {
                 pDTO.setDataVencimento(p.getDataVencimento());
                 pDTO.setValor(p.getValor());
                 pDTO.setPago(p.getPago());
+                pDTO.setPagamentoOnline(p.getPagamentoOnline());
+                pDTO.setPixCopiaECola(p.getPixCopiaECola());
+                pDTO.setPixQrCode(p.getPixQrCode());
+                pDTO.setMercadopagoPagamentoId(p.getMercadopagoPagamentoId());
+                pDTO.setDataExpiracaoPix(p.getDataExpiracaoPix());
+                
                 if (p.getFormaPagamento() != null) {
                     pDTO.setFormaPagamentoId(p.getFormaPagamento().getId());
                     pDTO.setFormaPagamentoDescricao(p.getFormaPagamento().getDescricao());
@@ -524,65 +570,90 @@ public class PedidoService {
         Pedido pedido = pedidoRepository.findById(id)
                 .orElseThrow(() -> new EntityNotFoundException("Pedido não encontrado"));
         pedido.setPago(pago);
+        syncStatusPedido(pedido);
         pedidoRepository.save(pedido);
     }
 
     @Transactional
-    public PedidoResponseDTO gerarPagamentoPixManual(Long id) {
+    public PedidoResponseDTO gerarPagamentoPixManual(Long id, Long pagamentoId) {
         Pedido pedido = pedidoRepository.findById(id)
                 .orElseThrow(() -> new EntityNotFoundException("Pedido não encontrado"));
         
-        gerarPagamentoPixSeNecessario(pedido);
+        if (pagamentoId != null) {
+            Pagamento p = pagamentoRepository.findById(pagamentoId)
+                    .orElseThrow(() -> new EntityNotFoundException("Pagamento não encontrado"));
+            if (!p.getPedido().getId().equals(id)) {
+                throw new IllegalArgumentException("Pagamento não pertence ao pedido informado");
+            }
+            gerarPagamentoPixSeNecessario(p);
+        } else {
+            // Compatibilidade: Busca apenas a PRIMEIRA parcela PIX Online Pendente
+            pedido.getPagamentos().stream()
+                .filter(p -> Boolean.TRUE.equals(p.getPagamentoOnline()) && 
+                             !Boolean.TRUE.equals(p.getPago()) &&
+                             p.getFormaPagamento() != null && 
+                             "PIX".equalsIgnoreCase(p.getFormaPagamento().getDescricao()))
+                .findFirst()
+                .ifPresent(this::gerarPagamentoPixSeNecessario);
+        }
         return convertToResponseDTO(pedido);
     }
 
-    private void gerarPagamentoPixSeNecessario(Pedido pedido) {
+    private void gerarPagamentoPixSeNecessario(Pagamento pagamento) {
+        Pedido pedido = pagamento.getPedido();
         Usuario usuario = pedido.getUsuario();
         
         // Se for PIX e estiver marcado para pagamento online, e o usuário estiver autorizado
         boolean podePagarOnline = usuario.getMetodoPagamentoAutorizado() == MetodoPagamentoAutorizado.ENTREGA_E_ONLINE ||
-                                usuario.getMetodoPagamentoAutorizado() == MetodoPagamentoAutorizado.APENAS_ONLINE;
+                                 usuario.getMetodoPagamentoAutorizado() == MetodoPagamentoAutorizado.APENAS_ONLINE;
 
-        if (Boolean.TRUE.equals(pedido.getPagamentoOnline()) && podePagarOnline &&
-            pedido.getFormaPagamento() != null && "PIX".equalsIgnoreCase(pedido.getFormaPagamento().getDescricao())) {
+        if (Boolean.TRUE.equals(pagamento.getPago())) {
+            return; // Não regera se já estiver pago
+        }
+
+        if (Boolean.TRUE.equals(pagamento.getPagamentoOnline()) &&
+            pagamento.getFormaPagamento() != null && "PIX".equalsIgnoreCase(pagamento.getFormaPagamento().getDescricao())) {
             
-            boolean expirado = pedido.getDataExpiracaoPix() != null && pedido.getDataExpiracaoPix().isBefore(OffsetDateTime.now());
 
-            // Só gera se ainda não tiver ID de pagamento ou se os dados do QR Code estiverem faltando, ou se estiver expirado
-            if (pedido.getMercadopagoPagamentoId() == null || pedido.getPixQrCode() == null || expirado) {
-                try {
-                    com.mercadopago.resources.payment.Payment mpPayment = mercadoPagoService.criarPagamentoPix(pedido);
-                    pedido.setMercadopagoPagamentoId(mpPayment.getId().toString());
-                    pedido.setPago(false);
+            // Para geração MANUAL (clique no botão), sempre geramos um novo se não estiver pago
+            try {
+                com.mercadopago.resources.payment.Payment mpPayment = mercadoPagoService.criarPagamentoPix(pagamento);
+                pagamento.setMercadopagoPagamentoId(mpPayment.getId().toString());
+                pagamento.setPago(false);
                     
                     if (mpPayment.getDateOfExpiration() != null) {
-                        pedido.setDataExpiracaoPix(mpPayment.getDateOfExpiration());
+                        pagamento.setDataExpiracaoPix(mpPayment.getDateOfExpiration());
                     }
                     
                     if (mpPayment.getPointOfInteraction() != null && 
                         mpPayment.getPointOfInteraction().getTransactionData() != null) {
-                        pedido.setPixCopiaECola(mpPayment.getPointOfInteraction().getTransactionData().getQrCode());
-                        pedido.setPixQrCode(mpPayment.getPointOfInteraction().getTransactionData().getQrCodeBase64());
+                        pagamento.setPixCopiaECola(mpPayment.getPointOfInteraction().getTransactionData().getQrCode());
+                        pagamento.setPixQrCode(mpPayment.getPointOfInteraction().getTransactionData().getQrCodeBase64());
                     }
                     
-                    pedidoRepository.save(pedido);
+                    pagamentoRepository.save(pagamento);
                 } catch (Exception e) {
-                    System.err.println("Erro ao criar pagamento Mercado Pago: " + e.getMessage());
+                    System.err.println("Erro ao criar pagamento Mercado Pago para parcela " + pagamento.getId() + ": " + e.getMessage());
+                    throw new RuntimeException("Erro ao gerar PIX: " + e.getMessage());
                 }
             }
         }
-    }
 
     @Transactional
-    public void salvarNotaFiscal(Long id, MultipartFile file, boolean notificar) throws IOException {
+    public void salvarNotaFiscal(Long id, String numeroNotaFiscal, MultipartFile file, boolean notificar) throws IOException {
         Pedido pedido = getPedidoEntity(id);
         
-        // nota_pedido_{id}_cliente_{usuario_id}.pdf
-        String fileName = String.format("nota_pedido_%d_cliente_%d.pdf", pedido.getId(), pedido.getUsuario().getId());
+        if (file != null && !file.isEmpty()) {
+            String fileName = String.format("nota_pedido_%d_cliente_%d.pdf", pedido.getId(), pedido.getUsuario().getId());
+            ociService.uploadFile(fileName, file.getInputStream(), file.getSize(), file.getContentType());
+            pedido.setNotaFiscalPath(fileName);
+            pedido.setNumeroNotaFiscal(numeroNotaFiscal);
+            pedido.setDataFaturamento(LocalDate.now());
+        } else {
+            // Se não enviou arquivo, apenas atualiza o número se estiver mudando
+            pedido.setNumeroNotaFiscal(numeroNotaFiscal);
+        }
         
-        ociService.uploadFile(fileName, file.getInputStream(), file.getSize(), file.getContentType());
-        
-        pedido.setNotaFiscalPath(fileName);
         pedidoRepository.save(pedido);
 
         if (notificar) {
@@ -606,6 +677,22 @@ public class PedidoService {
             pedido.setNotaFiscalPath(null);
             pedidoRepository.save(pedido);
         }
+    }
+
+    public void notificarCobrancaPix(Long id, Long pagamentoId) {
+        Pedido pedido = getPedidoEntity(id);
+        com.sara.api.model.Pagamento pagamento = pagamentoRepository.findById(pagamentoId)
+                .orElseThrow(() -> new EntityNotFoundException("Pagamento não encontrado"));
+        
+        if (!pagamento.getPedido().getId().equals(id)) {
+            throw new IllegalArgumentException("O pagamento não pertence a este pedido");
+        }
+        
+        if (Boolean.TRUE.equals(pagamento.getPago())) {
+            throw new IllegalStateException("Esta parcela já consta como paga");
+        }
+        
+        emailService.enviarEmailCobrancaPix(pedido, pagamento);
     }
 
     public InputStreamResource downloadNotaFiscal(Long id) {

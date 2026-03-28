@@ -3,7 +3,6 @@ package com.sara.api.controller;
 import com.sara.api.dto.PedidoRequestDTO;
 import com.sara.api.dto.PedidoResponseDTO;
 import com.sara.api.model.Pedido;
-import com.sara.api.model.SituacaoPedido;
 import com.sara.api.repository.UsuarioRepository;
 import com.sara.api.security.TokenService;
 import com.sara.api.service.PedidoPdfService;
@@ -18,10 +17,8 @@ import org.springframework.http.MediaType;
 import org.springframework.security.test.context.support.WithMockUser;
 import org.springframework.test.web.servlet.MockMvc;
 
-import java.math.BigDecimal;
 
 import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.*;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
@@ -119,12 +116,12 @@ class PedidoControllerTest {
         Pedido pedido = new Pedido();
         byte[] pdfContent = "PDF Mock".getBytes();
 
-        when(pedidoService.getPedidoEntity(id)).thenReturn(pedido);
+        when(pedidoService.getPedidoEntityForPdf(id)).thenReturn(pedido);
         when(pedidoPdfService.generatePedidoPdf(pedido)).thenReturn(pdfContent);
 
         mockMvc.perform(get("/api/pedidos/{id}/pdf", id))
                 .andExpect(status().isOk())
                 .andExpect(content().contentType(MediaType.APPLICATION_PDF))
-                .andExpect(header().string("Content-Disposition", "form-data; name=\"attachment\"; filename=\"pedido_1.pdf\""));
+                .andExpect(header().string("Content-Disposition", "inline; filename=pedido_1.pdf"));
     }
 }

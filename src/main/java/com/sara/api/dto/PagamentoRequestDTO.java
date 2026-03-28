@@ -11,4 +11,5 @@ public class PagamentoRequestDTO {
     private LocalDate dataVencimento;
     private Boolean pago;
     private BigDecimal valor;
+    private Boolean pagamentoOnline;
 }

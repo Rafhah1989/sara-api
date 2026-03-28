@@ -1,10 +1,10 @@
 package com.sara.api.model;
 
 import jakarta.persistence.*;
-import lombok.AllArgsConstructor;
-import lombok.Data;
-import lombok.NoArgsConstructor;
+import lombok.*;
+
 import java.math.BigDecimal;
+import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.OffsetDateTime;
 import java.time.ZoneId;
@@ -12,13 +12,18 @@ import java.util.ArrayList;
 import java.util.List;
 
 @Entity
-@Data
+@Getter
+@Setter
+@ToString(onlyExplicitlyIncluded = true)
+@EqualsAndHashCode(onlyExplicitlyIncluded = true)
 @NoArgsConstructor
 @AllArgsConstructor
 public class Pedido {
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
+    @EqualsAndHashCode.Include
+    @ToString.Include
     private Long id;
 
     @ManyToOne
@@ -41,31 +46,24 @@ public class Pedido {
     private Boolean cancelado = false;
 
     @Column(name = "data_pedido", updatable = false)
+    @ToString.Include
     private LocalDateTime dataPedido;
 
     @Enumerated(EnumType.STRING)
     @Column(nullable = false)
+    @ToString.Include
     private SituacaoPedido situacao = SituacaoPedido.PENDENTE;
     
     private Boolean pago = false;
 
-    @Column(name = "pix_copia_e_cola", columnDefinition = "TEXT")
-    private String pixCopiaECola;
-
-    @Column(name = "pix_qr_code", columnDefinition = "TEXT")
-    private String pixQrCode;
-
-    @Column(name = "mercadopago_pagamento_id", length = 100)
-    private String mercadopagoPagamentoId;
-
-    @Column(name = "pagamento_online")
-    private Boolean pagamentoOnline = false;
-
-    @Column(name = "data_expiracao_pix")
-    private OffsetDateTime dataExpiracaoPix;
-
     @Column(name = "nota_fiscal_path")
     private String notaFiscalPath;
+    
+    @Column(name = "numero_nota_fiscal")
+    private String numeroNotaFiscal;
+    
+    @Column(name = "data_faturamento")
+    private LocalDate dataFaturamento;
 
     @OneToMany(mappedBy = "pedido", cascade = CascadeType.ALL, orphanRemoval = true)
     private List<Pagamento> pagamentos = new ArrayList<>();

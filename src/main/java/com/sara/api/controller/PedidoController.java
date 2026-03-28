@@ -117,8 +117,10 @@ public class PedidoController {
 
     @PostMapping("/{id}/gerar-pix")
     @Operation(summary = "Gera ou regenera o PIX do pedido", description = "Tenta gerar o pagamento no Mercado Pago caso ainda não exista ou tenha falhado.")
-    public ResponseEntity<PedidoResponseDTO> gerarPix(@PathVariable("id") Long id) {
-        return ResponseEntity.ok(pedidoService.gerarPagamentoPixManual(id));
+    public ResponseEntity<PedidoResponseDTO> gerarPix(
+            @PathVariable("id") Long id,
+            @RequestParam(required = false) Long pagamentoId) {
+        return ResponseEntity.ok(pedidoService.gerarPagamentoPixManual(id, pagamentoId));
     }
 
     @PostMapping(value = "/{id}/nota-fiscal", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
@@ -126,9 +128,10 @@ public class PedidoController {
     @org.springframework.security.access.prepost.PreAuthorize("hasRole('ADMIN')")
     public ResponseEntity<Void> uploadNotaFiscal(
             @PathVariable("id") Long id, 
-            @RequestParam("file") org.springframework.web.multipart.MultipartFile file,
+            @RequestParam("numeroNotaFiscal") String numeroNotaFiscal,
+            @RequestParam(value = "file", required = false) org.springframework.web.multipart.MultipartFile file,
             @RequestParam(value = "notificar", defaultValue = "true") boolean notificar) throws java.io.IOException {
-        pedidoService.salvarNotaFiscal(id, file, notificar);
+        pedidoService.salvarNotaFiscal(id, numeroNotaFiscal, file, notificar);
         return ResponseEntity.ok().build();
     }
 
@@ -137,6 +140,14 @@ public class PedidoController {
     @org.springframework.security.access.prepost.PreAuthorize("hasRole('ADMIN')")
     public ResponseEntity<Void> notificarNotaFiscal(@PathVariable("id") Long id) {
         pedidoService.notificarNotaFiscal(id);
+        return ResponseEntity.ok().build();
+    }
+
+    @PostMapping("/{id}/pagamentos/{pagamentoId}/notificar-pix")
+    @Operation(summary = "Envia e-mail de cobrança manual de PIX (ADMIN)", description = "Envia e-mail ao cliente com o código copia e cola e instruções para pagamento.")
+    @org.springframework.security.access.prepost.PreAuthorize("hasRole('ADMIN')")
+    public ResponseEntity<Void> notificarCobrancaPix(@PathVariable("id") Long id, @PathVariable("pagamentoId") Long pagamentoId) {
+        pedidoService.notificarCobrancaPix(id, pagamentoId);
         return ResponseEntity.ok().build();
     }
 

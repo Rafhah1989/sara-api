@@ -12,6 +12,8 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.test.util.ReflectionTestUtils;
+import org.junit.jupiter.api.BeforeEach;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContext;
 import org.springframework.security.core.context.SecurityContextHolder;
@@ -43,29 +45,42 @@ class PedidoServiceTest {
     private EmailService emailService;
     @Mock
     private MercadoPagoService mercadoPagoService;
+    @Mock
+    private PagamentoRepository pagamentoRepository;
 
     @InjectMocks
     private PedidoService pedidoService;
+
+    @BeforeEach
+    void setUp() {
+        ReflectionTestUtils.setField(pedidoService, "pedidoRepository", pedidoRepository);
+        ReflectionTestUtils.setField(pedidoService, "usuarioRepository", usuarioRepository);
+        ReflectionTestUtils.setField(pedidoService, "produtoRepository", produtoRepository);
+        ReflectionTestUtils.setField(pedidoService, "formaPagamentoRepository", formaPagamentoRepository);
+        ReflectionTestUtils.setField(pedidoService, "emailService", emailService);
+        ReflectionTestUtils.setField(pedidoService, "mercadoPagoService", mercadoPagoService);
+        ReflectionTestUtils.setField(pedidoService, "pagamentoRepository", pagamentoRepository); 
+    }
 
     @Test
     @DisplayName("Deve buscar pedido por ID com sucesso")
     void deveBuscarPedidoPorIdComSucesso() {
         Long id = 1L;
         Pedido pedido = createPedidoMock(id);
-        when(pedidoRepository.findById(id)).thenReturn(Optional.of(pedido));
+        when(pedidoRepository.findByIdWithDetails(id)).thenReturn(Optional.of(pedido));
 
         PedidoResponseDTO response = pedidoService.findById(id);
 
         assertThat(response).isNotNull();
         assertThat(response.getId()).isEqualTo(id);
-        verify(pedidoRepository).findById(id);
+        verify(pedidoRepository).findByIdWithDetails(id);
     }
 
     @Test
     @DisplayName("Deve lançar EntityNotFoundException ao buscar pedido inexistente")
     void deveLancarExceptionAoBuscarPedidoInexistente() {
         Long id = 99L;
-        when(pedidoRepository.findById(id)).thenReturn(Optional.empty());
+        when(pedidoRepository.findByIdWithDetails(id)).thenReturn(Optional.empty());
 
         assertThatThrownBy(() -> pedidoService.findById(id))
                 .isInstanceOf(EntityNotFoundException.class)
@@ -96,16 +111,20 @@ class PedidoServiceTest {
         produto.setPeso(1.0);
 
         when(usuarioRepository.findById(1L)).thenReturn(Optional.of(usuario));
-        when(produtoRepository.findById(10L)).thenReturn(Optional.of(produto));
+        when(produtoRepository.findAllById(anyList())).thenReturn(Collections.singletonList(produto));
         
         Pedido pedidoSalvo = new Pedido();
         pedidoSalvo.setId(123L);
         pedidoSalvo.setUsuario(usuario);
         pedidoSalvo.setProdutos(new ArrayList<>());
-        pedidoSalvo.setDataExpiracaoPix(OffsetDateTime.now().plusMinutes(15));
+        Pagamento pagamento = new Pagamento();
+        pagamento.setPedido(pedidoSalvo);
+        pagamento.setDataExpiracaoPix(OffsetDateTime.now().plusMinutes(15));
+        pedidoSalvo.getPagamentos().add(pagamento);
+        
         
         when(pedidoRepository.save(any(Pedido.class))).thenReturn(pedidoSalvo);
-        when(pedidoRepository.findByIdWithProdutos(123L)).thenReturn(Optional.of(pedidoSalvo));
+        when(pedidoRepository.findByIdWithDetails(anyLong())).thenReturn(Optional.of(pedidoSalvo));
 
         // WHEN
         PedidoResponseDTO response = pedidoService.save(request);
@@ -113,7 +132,6 @@ class PedidoServiceTest {
         // THEN
         assertThat(response).isNotNull();
         assertThat(response.getId()).isEqualTo(123L);
-        assertThat(response.getDataExpiracaoPix()).isNotNull();
         verify(emailService).enviarEmailNovoPedido(any(Pedido.class));
         verify(pedidoRepository).save(any(Pedido.class));
     }
@@ -123,13 +141,16 @@ class PedidoServiceTest {
     void deveRegerarPixQuandoExpirado() {
         // GIVEN
         Pedido pedidoExpirado = createPedidoMock(1L);
-        pedidoExpirado.setDataExpiracaoPix(OffsetDateTime.now().minusMinutes(5)); // Expirado há 5 min
-        pedidoExpirado.setPagamentoOnline(true);
-        pedidoExpirado.setMercadopagoPagamentoId("old-id");
+        Pagamento pagamento = new Pagamento();
+        pagamento.setPedido(pedidoExpirado);
+        pagamento.setDataExpiracaoPix(OffsetDateTime.now().minusMinutes(5));
+        pagamento.setPagamentoOnline(true);
+        pagamento.setMercadopagoPagamentoId("old-id");
         
         FormaPagamento fp = new FormaPagamento();
         fp.setDescricao("PIX");
-        pedidoExpirado.setFormaPagamento(fp);
+        pagamento.setFormaPagamento(fp);
+        pedidoExpirado.getPagamentos().add(pagamento);
         
         Usuario usuario = pedidoExpirado.getUsuario();
         usuario.setMetodoPagamentoAutorizado(MetodoPagamentoAutorizado.APENAS_ONLINE);
@@ -141,17 +162,17 @@ class PedidoServiceTest {
         when(mpPayment.getDateOfExpiration()).thenReturn(java.time.OffsetDateTime.now().plusMinutes(15));
 
         try {
-            when(mercadoPagoService.criarPagamentoPix(any(Pedido.class))).thenReturn(mpPayment);
+            when(mercadoPagoService.criarPagamentoPix(any(Pagamento.class))).thenReturn(mpPayment);
         } catch (Exception e) {}
 
         // WHEN
-        pedidoService.gerarPagamentoPixManual(1L);
+        pedidoService.gerarPagamentoPixManual(1L, null);
 
         // THEN
         try {
-            verify(mercadoPagoService).criarPagamentoPix(pedidoExpirado);
+            verify(mercadoPagoService).criarPagamentoPix(any(Pagamento.class));
         } catch (Exception e) {}
-        assertThat(pedidoExpirado.getMercadopagoPagamentoId()).isEqualTo("999");
+        assertThat(pagamento.getMercadopagoPagamentoId()).isEqualTo("999");
     }
 
     @Test
@@ -168,7 +189,7 @@ class PedidoServiceTest {
         setupSecurityContext(responsavel);
         
         when(pedidoRepository.findById(id)).thenReturn(Optional.of(pedido));
-        when(pedidoRepository.findByIdWithProdutos(id)).thenReturn(Optional.of(pedido));
+        when(pedidoRepository.findByIdWithDetails(id)).thenReturn(Optional.of(pedido));
 
         // WHEN
         pedidoService.cancel(id, "Motivo do cancelamento");
@@ -222,21 +243,26 @@ class PedidoServiceTest {
         // Mock do save inicial
         when(pedidoRepository.save(any(Pedido.class))).thenAnswer(invocation -> invocation.getArgument(0));
         
-        // Mock do findByIdWithProdutos que é chamado no final do save
+        // Mock do findByIdWithDetails que é chamado no final do save
         Pedido pedidoFinal = new Pedido();
         pedidoFinal.setId(1L);
         pedidoFinal.setUsuario(usuario);
         pedidoFinal.setFormaPagamento(fpDinheiro);
         // O valor esperado é FALSE porque não é PIX
-        pedidoFinal.setPagamentoOnline(false); 
-        when(pedidoRepository.findByIdWithProdutos(any())).thenReturn(Optional.of(pedidoFinal));
+        // Simula o comportamento do service: se não for PIX, pagamentoOnline deve ser false no respectivo pagamento
+        Pagamento pagamento = new Pagamento();
+        pagamento.setPedido(pedidoFinal);
+        pagamento.setFormaPagamento(fpDinheiro);
+        pagamento.setPagamentoOnline(false);
+        pedidoFinal.getPagamentos().add(pagamento);
+        when(pedidoRepository.findByIdWithDetails(any())).thenReturn(Optional.of(pedidoFinal));
 
         // WHEN
         PedidoResponseDTO response = pedidoService.save(request);
 
         // THEN
         assertThat(response.getPagamentoOnline()).isFalse();
-        verify(mercadoPagoService, never()).criarPagamentoPix(any());
+        verify(mercadoPagoService, never()).criarPagamentoPix(any(Pagamento.class));
     }
 
     private Pedido createPedidoMock(Long id) {

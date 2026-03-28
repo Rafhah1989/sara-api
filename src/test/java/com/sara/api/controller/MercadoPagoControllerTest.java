@@ -1,8 +1,9 @@
 package com.sara.api.controller;
 
-import com.sara.api.model.Pedido;
-import com.sara.api.repository.PedidoRepository;
+import com.sara.api.model.Pagamento;
+import com.sara.api.repository.PagamentoRepository;
 import com.sara.api.service.MercadoPagoService;
+import com.sara.api.service.PedidoService;
 import com.sara.api.repository.UsuarioRepository;
 import com.sara.api.security.TokenService;
 import org.junit.jupiter.api.DisplayName;
@@ -23,7 +24,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 @WebMvcTest(MercadoPagoController.class)
-@AutoConfigureMockMvc(addFilters = false) // Desabilita filtros de segurança para facilitar o teste unitário de controller
+@AutoConfigureMockMvc(addFilters = false)
 class MercadoPagoControllerTest {
 
     @Autowired
@@ -33,7 +34,10 @@ class MercadoPagoControllerTest {
     private MercadoPagoService mercadoPagoService;
 
     @MockBean
-    private PedidoRepository pedidoRepository;
+    private PagamentoRepository pagamentoRepository;
+
+    @MockBean
+    private PedidoService pedidoService;
 
     @MockBean
     private TokenService tokenService;
@@ -46,53 +50,53 @@ class MercadoPagoControllerTest {
     @WithMockUser
     void deveRetornar200ESucessoNaVerificacao() throws Exception {
         // GIVEN
-        Long pedidoId = 1L;
-        Pedido pedido = new Pedido();
-        pedido.setId(pedidoId);
-        pedido.setMercadopagoPagamentoId("MP123");
-        pedido.setPago(true);
+        Long pagamentoId = 1L;
+        Pagamento pagamento = new Pagamento();
+        pagamento.setId(pagamentoId);
+        pagamento.setMercadopagoPagamentoId("MP123");
+        pagamento.setPago(true);
 
-        when(pedidoRepository.findById(pedidoId)).thenReturn(Optional.of(pedido));
+        when(pagamentoRepository.findById(pagamentoId)).thenReturn(Optional.of(pagamento));
         when(mercadoPagoService.verificarStatusPagamento("MP123")).thenReturn("approved");
 
         // WHEN & THEN
-        mockMvc.perform(post("/api/mercadopago/verificar-pagamento/{idPedido}", pedidoId)
+        mockMvc.perform(post("/api/mercadopago/verificar-pagamento/{idPagamento}", pagamentoId)
                 .contentType(MediaType.APPLICATION_JSON))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.status").value("approved"))
                 .andExpect(jsonPath("$.pago").value(true))
-                .andExpect(jsonPath("$.idPedido").value(pedidoId));
+                .andExpect(jsonPath("$.idPagamento").value(pagamentoId));
     }
 
     @Test
-    @DisplayName("Deve retornar 400 quando pedido não tem ID do Mercado Pago")
+    @DisplayName("Deve retornar 400 quando pagamento não tem ID do Mercado Pago")
     @WithMockUser
     void deveRetornar400QuandoSemIdPagamento() throws Exception {
         // GIVEN
-        Long pedidoId = 1L;
-        Pedido pedido = new Pedido();
-        pedido.setId(pedidoId);
-        pedido.setMercadopagoPagamentoId(null);
+        Long pagamentoId = 1L;
+        Pagamento pagamento = new Pagamento();
+        pagamento.setId(pagamentoId);
+        pagamento.setMercadopagoPagamentoId(null);
 
-        when(pedidoRepository.findById(pedidoId)).thenReturn(Optional.of(pedido));
+        when(pagamentoRepository.findById(pagamentoId)).thenReturn(Optional.of(pagamento));
 
         // WHEN & THEN
-        mockMvc.perform(post("/api/mercadopago/verificar-pagamento/{idPedido}", pedidoId)
+        mockMvc.perform(post("/api/mercadopago/verificar-pagamento/{idPagamento}", pagamentoId)
                 .contentType(MediaType.APPLICATION_JSON))
                 .andExpect(status().isBadRequest())
-                .andExpect(jsonPath("$.error").value("Pedido não possui ID de pagamento associado"));
+                .andExpect(jsonPath("$.error").value("Vencimento não possui ID de pagamento associado"));
     }
 
     @Test
-    @DisplayName("Deve retornar 404 quando pedido não for encontrado")
+    @DisplayName("Deve retornar 404 quando pagamento não for encontrado")
     @WithMockUser
-    void deveRetornar404QuandoPedidoInexistente() throws Exception {
+    void deveRetornar404QuandoPagamentoInexistente() throws Exception {
         // GIVEN
-        Long pedidoId = 99L;
-        when(pedidoRepository.findById(pedidoId)).thenReturn(Optional.empty());
+        Long pagamentoId = 99L;
+        when(pagamentoRepository.findById(pagamentoId)).thenReturn(Optional.empty());
 
         // WHEN & THEN
-        mockMvc.perform(post("/api/mercadopago/verificar-pagamento/{idPedido}", pedidoId)
+        mockMvc.perform(post("/api/mercadopago/verificar-pagamento/{idPagamento}", pagamentoId)
                 .contentType(MediaType.APPLICATION_JSON))
                 .andExpect(status().isNotFound());
     }
