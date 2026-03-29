@@ -25,6 +25,9 @@ public class SecurityConfigurations {
     @Autowired
     private SecurityFilter securityFilter;
 
+    @Autowired
+    private DiagnosticFilter diagnosticFilter;
+
     @Bean
     public SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {
         return http.cors(cors -> cors.configurationSource(corsConfigurationSource()))
@@ -51,6 +54,7 @@ public class SecurityConfigurations {
                     req.anyRequest().hasRole("ADMIN");
                 })
                 .addFilterBefore(securityFilter, UsernamePasswordAuthenticationFilter.class)
+                .addFilterBefore(diagnosticFilter, UsernamePasswordAuthenticationFilter.class)
                 .build();
     }
 

@@ -12,18 +12,18 @@ import com.sara.api.model.Pedido;
 import com.sara.api.model.Usuario;
 import com.sara.api.repository.PagamentoRepository;
 import com.sara.api.repository.PedidoRepository;
-import com.fasterxml.jackson.databind.ObjectMapper;
 import jakarta.annotation.PostConstruct;
 
-import java.lang.reflect.Field;
 import java.time.OffsetDateTime;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
-import org.springframework.scheduling.annotation.Async;
-import org.springframework.stereotype.Service;
 import org.springframework.context.annotation.Lazy;
+import org.springframework.scheduling.annotation.Async;
+import org.springframework.scheduling.annotation.Scheduled;
+import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.util.List;
 import java.util.Map;
 
 @Service
@@ -48,9 +48,6 @@ public class MercadoPagoService {
     @Lazy
     private PedidoService pedidoService;
 
-    @Autowired
-    private ObjectMapper objectMapper;
-
     @PostConstruct
     public void init() {
         if (accessToken == null || accessToken.trim().isEmpty()) {
@@ -59,74 +56,122 @@ public class MercadoPagoService {
         MercadoPagoConfig.setAccessToken(accessToken);
     }
 
+    @Scheduled(fixedDelay = 30000) // Executa a cada 30 segundos
+    @Transactional
+    public void verificarPagamentosPixPendentes() {
+        try {
+            OffsetDateTime agora = OffsetDateTime.now();
+            List<Pagamento> pendentes = pagamentoRepository
+                .findAllByPagoFalseAndPagamentoOnlineTrueAndMercadopagoPagamentoIdIsNotNullAndDataExpiracaoPixAfter(agora);
+            
+            if (!pendentes.isEmpty()) {
+                System.out.println(">>> [POLLING] Iniciando varredura de " + pendentes.size() + " pagamentos PIX pendentes...");
+                for (Pagamento p : pendentes) {
+                    try {
+                        verificarStatusPagamento(p.getMercadopagoPagamentoId());
+                    } catch (Exception e) {
+                        System.err.println(">>> [POLLING] Erro ao verificar pagamento #" + p.getId() + ": " + e.getMessage());
+                    }
+                }
+            }
+        } catch (Exception e) {
+            System.err.println(">>> [POLLING] Erro crítico na varredura de pagamentos: " + e.getMessage());
+        }
+    }
+
     @Async
     @Transactional
-    public void processarNotificacaoAsync(String body, Map<String, String> params) {
+    public void processarNotificacaoAsync(Map<String, Object> payload, Map<String, String> params) {
         try {
-            System.out.println("Iniciando processamento assíncrono do webhook...");
+            System.out.println("--- NOVO WEBHOOK MERCADO PAGO (STR) ---");
+            System.out.println("Params: " + params);
+            System.out.println("Payload: " + payload);
+            
             String paymentId = null;
 
-            // Tenta extrair do body JSON (V2)
-            if (body != null && body.trim().startsWith("{")) {
+            // 1. Tenta extrair do payload JSON pré-processado pela Spring (v2)
+            if (payload != null && !payload.isEmpty()) {
                 try {
-                    Map<String, Object> payload = objectMapper.readValue(body, Map.class);
+                    // Prioridade 1: data.id (Padrão atual v1.1+)
+                    if (payload.containsKey("data")) {
+                        @SuppressWarnings("unchecked")
+                        Map<String, Object> data = (Map<String, Object>) payload.get("data");
+                        if (data != null && data.get("id") != null) {
+                            paymentId = data.get("id").toString();
+                        }
+                    }
+                    
+                    // Prioridade 2: id na raiz (Padrão v1.0 ou legado)
+                    if (paymentId == null && payload.containsKey("id")) {
+                        Object idObj = payload.get("id");
+                        // Verifica se não é o ID da própria notificação (geralmente numérico)
+                        if (idObj != null) paymentId = idObj.toString();
+                    }
+
                     if (payload.containsKey("action")) {
                         String action = (String) payload.get("action");
-                        if ("payment.updated".equals(action)) {
-                            Map<String, Object> data = (Map<String, Object>) payload.get("data");
-                            if (data != null && data.get("id") != null) {
-                                paymentId = data.get("id").toString();
-                            }
-                        } else if ("payment.created".equals(action)){
-                            return;
+                        System.out.println("Ação detectada: " + action);
+                        
+                        if ("payment.created".equals(action) && paymentId != null) {
+                            System.out.println("Notificação de criação recebida. Verificando status atual por segurança...");
+                        } else if ("payment.updated".equals(action)) {
+                            System.out.println("Notificação de atualização recebida.");
                         }
                     }
                 } catch (Exception e) {
-                    System.err.println("Erro ao fazer parse do JSON: " + e.getMessage());
+                    System.err.println("Erro ao extrair dados do payload do Webhook: " + e.getMessage());
                 }
             }
 
-            // Se não achou no JSON, tenta nos params (V1/Legacy)
-            if (paymentId == null) {
-                if ("payment".equals(params.get("topic")) || "payment".equals(params.get("type"))) {
+            // 2. Se não achou no JSON, tenta nos params (Query Params legado / v1)
+            if (paymentId == null && params != null) {
+                if (params.containsKey("id")) {
                     paymentId = params.get("id");
-                    if (paymentId == null) paymentId = params.get("data.id");
+                } else if (params.containsKey("data.id")) {
+                    paymentId = params.get("data.id");
                 }
             }
 
-            if (paymentId != null) {
+            if (paymentId != null && !paymentId.isEmpty()) {
+                System.out.println("ID identificado para sincronia: " + paymentId);
                 verificarStatusPagamento(paymentId);
             } else {
-                System.out.println("Nenhum ID de pagamento identificado na notificação.");
+                System.out.println("ALERTA: Webhook sem ID de pagamento identificado.");
             }
         } catch (Exception e) {
-            System.err.println("Erro no processamento assíncrono: " + e.getMessage());
+            System.err.println("CRÍTICO: Erro no processamento do Webhook: " + e.getMessage());
+            e.printStackTrace();
         }
     }
 
     @Transactional
     public String verificarStatusPagamento(String paymentId) {
         try {
-            System.out.println("Verificando status do pagamento: " + paymentId);
             Payment payment = buscarPagamento(paymentId);
+            System.out.println("Consulta Mercado Pago - Pagamento " + paymentId + ": Status=" + payment.getStatus());
+            
             if ("approved".equals(payment.getStatus())) {
                 Pagamento pagamento = pagamentoRepository.findByMercadopagoPagamentoId(paymentId)
                         .orElse(null);
                 
-                if (pagamento != null && (pagamento.getPago() == null || !pagamento.getPago())) {
-                    pagamento.setPago(true);
-                    pagamentoRepository.save(pagamento);
-                    System.out.println("Pagamento #" + pagamento.getId() + " da parcela marcado como PAGO.");
-                    
-                    // Atualiza o status do pedido
-                    pedidoService.syncStatusPedido(pagamento.getPedido());
-                    pedidoRepository.save(pagamento.getPedido());
+                if (pagamento != null) {
+                    if (Boolean.TRUE.equals(pagamento.getPago())) {
+                        System.out.println("Pagamento #" + pagamento.getId() + " já consta como Pago. Nenhuma ação necessária.");
+                    } else {
+                        pagamento.setPago(true);
+                        pagamentoRepository.save(pagamento);
+                        System.out.println("SUCESSO: Pagamento #" + pagamento.getId() + " marcado como PAGO via Webhook.");
+                        
+                        // Atualiza o status do pedido
+                        pedidoService.syncStatusPedido(pagamento.getPedido());
+                        pedidoRepository.save(pagamento.getPedido());
 
-                    // Envia e-mails de confirmação
-                    emailService.enviarEmailPagamentoConfirmado(pagamento.getPedido(), pagamento);
+                        // Envia e-mails de confirmação
+                        emailService.enviarEmailPagamentoConfirmado(pagamento.getPedido(), pagamento);
+                    }
+                } else {
+                    System.err.println("ALERTA: Recebido pagamento aprovado do MP (" + paymentId + ") mas o ID não foi encontrado no nosso banco de dados.");
                 }
-            } else {
-                System.out.println("Status do pagamento: " + payment.getStatus());
             }
             return payment.getStatus();
         } catch (Exception e) {
@@ -148,15 +193,29 @@ public class MercadoPagoService {
                 .notificationUrl(urlWebhook)
                 .dateOfExpiration(OffsetDateTime.now().plusMinutes(15));
 
-        PaymentPayerRequest.PaymentPayerRequestBuilder payerBuilder = PaymentPayerRequest.builder()
-                .email(user.getEmail())
-                .firstName(user.getNome());
+        String email = user.getEmail();
+        if (email == null || email.isBlank() || !email.contains("@")) {
+            // Mercado Pago exige um e-mail válido. Se o usuário não tiver, usamos um fallback corporativo ou do sistema
+            email = "financeiro@sarasystem.com.br"; // Exemplo de fallback
+        }
 
-        if (user.getCpfCnpj() != null && !user.getCpfCnpj().isBlank()) {
-            payerBuilder.identification(com.mercadopago.client.common.IdentificationRequest.builder()
-                    .type(user.getCpfCnpj().replaceAll("\\D", "").length() > 11 ? "CNPJ" : "CPF")
-                    .number(user.getCpfCnpj().replaceAll("\\D", ""))
-                    .build());
+        String nome = user.getNome();
+        if (nome == null || nome.isBlank()) {
+            nome = "Cliente Sara";
+        }
+
+        PaymentPayerRequest.PaymentPayerRequestBuilder payerBuilder = PaymentPayerRequest.builder()
+                .email(email)
+                .firstName(nome);
+
+        if (user.getCpfCnpj() != null && !user.getCpfCnpj().replaceAll("\\D", "").isBlank()) {
+            String numbersOnly = user.getCpfCnpj().replaceAll("\\D", "");
+            if (numbersOnly.length() >= 11) {
+                payerBuilder.identification(com.mercadopago.client.common.IdentificationRequest.builder()
+                        .type(numbersOnly.length() > 11 ? "CNPJ" : "CPF")
+                        .number(numbersOnly)
+                        .build());
+            }
         }
 
         PaymentCreateRequest request = builder.payer(payerBuilder.build()).build();

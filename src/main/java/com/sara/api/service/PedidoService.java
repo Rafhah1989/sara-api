@@ -19,6 +19,8 @@ import org.springframework.web.multipart.MultipartFile;
 import org.springframework.context.annotation.Lazy;
 import org.springframework.beans.factory.annotation.Autowired;
 import java.io.IOException;
+import com.mercadopago.exceptions.MPApiException;
+import com.mercadopago.exceptions.MPException;
 
 import java.math.BigDecimal;
 import java.time.LocalDate;
@@ -284,7 +286,11 @@ public class PedidoService {
         
         // Tenta gerar PIX para cada pagamento marcado como online
         for (Pagamento p : updated.getPagamentos()) {
-            gerarPagamentoPixSeNecessario(p);
+            // Se já tem um ID do MP, não tenta gerar novamente de forma automática durante o 'update'
+            // Isso evita disparar erros de API em produção se os dados forem sensíveis ou MP instável.
+            if (p.getMercadopagoPagamentoId() == null || p.getMercadopagoPagamentoId().isEmpty()) {
+                gerarPagamentoPixSeNecessario(p);
+            }
         }
 
         if (Boolean.TRUE.equals(request.getNotificar())) {
@@ -611,6 +617,7 @@ public class PedidoService {
             return; // Não regera se já estiver pago
         }
 
+
         if (Boolean.TRUE.equals(pagamento.getPagamentoOnline()) &&
             pagamento.getFormaPagamento() != null && "PIX".equalsIgnoreCase(pagamento.getFormaPagamento().getDescricao())) {
             
@@ -620,24 +627,29 @@ public class PedidoService {
                 com.mercadopago.resources.payment.Payment mpPayment = mercadoPagoService.criarPagamentoPix(pagamento);
                 pagamento.setMercadopagoPagamentoId(mpPayment.getId().toString());
                 pagamento.setPago(false);
-                    
-                    if (mpPayment.getDateOfExpiration() != null) {
-                        pagamento.setDataExpiracaoPix(mpPayment.getDateOfExpiration());
-                    }
-                    
-                    if (mpPayment.getPointOfInteraction() != null && 
-                        mpPayment.getPointOfInteraction().getTransactionData() != null) {
-                        pagamento.setPixCopiaECola(mpPayment.getPointOfInteraction().getTransactionData().getQrCode());
-                        pagamento.setPixQrCode(mpPayment.getPointOfInteraction().getTransactionData().getQrCodeBase64());
-                    }
-                    
-                    pagamentoRepository.save(pagamento);
-                } catch (Exception e) {
-                    System.err.println("Erro ao criar pagamento Mercado Pago para parcela " + pagamento.getId() + ": " + e.getMessage());
-                    throw new RuntimeException("Erro ao gerar PIX: " + e.getMessage());
+                
+                if (mpPayment.getDateOfExpiration() != null) {
+                    pagamento.setDataExpiracaoPix(mpPayment.getDateOfExpiration());
                 }
+                
+                if (mpPayment.getPointOfInteraction() != null && 
+                    mpPayment.getPointOfInteraction().getTransactionData() != null) {
+                    pagamento.setPixCopiaECola(mpPayment.getPointOfInteraction().getTransactionData().getQrCode());
+                    pagamento.setPixQrCode(mpPayment.getPointOfInteraction().getTransactionData().getQrCodeBase64());
+                }
+                
+                pagamentoRepository.save(pagamento);
+            } catch (MPApiException apiException) {
+                String details = apiException.getApiResponse() != null ? apiException.getApiResponse().getContent() : "Sem detalhes";
+                System.err.println("ERRO API MERCADO PAGO (Parcela " + pagamento.getId() + "): " + details);
+                // Não lançamos RuntimeException aqui para não quebrar o 'update' do pedido inteiro
+                // O administrador poderá tentar gerar novamente pelo botão manual se desejar.
+            } catch (Exception e) {
+                System.err.println("Erro genérico ao criar pagamento Mercado Pago para parcela " + pagamento.getId() + ": " + e.getMessage());
+                // Mesma lógica de robustez
             }
         }
+    }
 
     @Transactional
     public void salvarNotaFiscal(Long id, String numeroNotaFiscal, MultipartFile file, boolean notificar) throws IOException {

@@ -26,29 +26,30 @@ public class SecurityFilter extends OncePerRequestFilter {
     protected void doFilterInternal(HttpServletRequest request, HttpServletResponse response, FilterChain filterChain) throws ServletException, IOException {
 
         String path = request.getRequestURI();
-        if (path.contains("/api/mercadopago/webhook")) {
+        
+        // PRIORIDADE ABSOLUTA: Webhook do Mercado Pago não deve ser processado pelo filtro de segurança convencional
+        if (path != null && path.contains("/api/mercadopago/webhook")) {
+            System.out.println(">>> [SECURITY] Liberando webhook imediatamente: " + path);
             filterChain.doFilter(request, response);
             return;
         }
 
-        var tokenJWT = recuperarToken(request);
+        try {
+            var tokenJWT = recuperarToken(request);
 
-        if (tokenJWT != null) {
-            try {
+            if (tokenJWT != null) {
                 var subject = tokenService.getSubject(tokenJWT);
                 var usuario = repository.findByCpfCnpj(subject).orElse(null);
 
                 if (usuario != null && usuario.isEnabled()) {
-                    System.out.println("Autenticando usuário: " + usuario.getUsername() + " com Roles: " + usuario.getAuthorities());
                     var authentication = new UsernamePasswordAuthenticationToken(usuario, null, usuario.getAuthorities());
                     SecurityContextHolder.getContext().setAuthentication(authentication);
-                } else {
-                    System.out.println("Usuário nulo ou inativo. Sujeito: " + subject);
                 }
-            } catch (RuntimeException e) {
-                System.err.println("Erro ao processar token JWT no SecurityFilter:");
-                e.printStackTrace();
             }
+        } catch (Exception e) {
+            // Se houver erro no processamento do token (token expirado, inválido, etc), 
+            // apenas não autentica. O Spring Security cuidará do bloqueio se o endpoint for protegido.
+            System.err.println(">>> [SECURITY] Erro silencioso ao processar token: " + e.getMessage());
         }
 
         filterChain.doFilter(request, response);

@@ -3,9 +3,7 @@ package com.sara.api.controller;
 import com.sara.api.exception.ValidationException;
 import com.sara.api.model.Pagamento;
 import com.sara.api.repository.PagamentoRepository;
-import com.sara.api.repository.PedidoRepository;
 import com.sara.api.service.MercadoPagoService;
-import com.sara.api.service.PedidoService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import lombok.RequiredArgsConstructor;
@@ -24,18 +22,16 @@ public class MercadoPagoController {
 
     private final MercadoPagoService mercadoPagoService;
     private final PagamentoRepository pagamentoRepository;
-    private final PedidoService pedidoService;
 
     @PostMapping("/webhook")
-    @Operation(summary = "Webhook do Mercado Pago", description = "Recebe notificações de alteração de status de pagamento (JSON ou Form)")
+    @Operation(summary = "Webhook do Mercado Pago")
     public ResponseEntity<Void> webhook(
-            @RequestBody(required = false) String body,
+            @RequestBody(required = false) Map<String, Object> payload,
             @RequestParam Map<String, String> allParams) {
         
-        System.out.println("Webhook entry! Params: " + allParams);
-        
-        // Dispara o processamento assíncrono para liberar o MP imediatamente
-        mercadoPagoService.processarNotificacaoAsync(body, allParams);
+        System.out.println("--- Webhook Entry ---");
+        // Processamento assíncrono
+        mercadoPagoService.processarNotificacaoAsync(payload, allParams);
 
         return ResponseEntity.ok().build();
     }
