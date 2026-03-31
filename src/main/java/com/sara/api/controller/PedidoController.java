@@ -115,12 +115,12 @@ public class PedidoController {
         return new ResponseEntity<>(pdfBytes, headers, HttpStatus.OK);
     }
 
-    @PostMapping("/{id}/gerar-pix")
-    @Operation(summary = "Gera ou regenera o PIX do pedido", description = "Tenta gerar o pagamento no Mercado Pago caso ainda não exista ou tenha falhado.")
-    public ResponseEntity<PedidoResponseDTO> gerarPix(
+    @PostMapping("/{id}/gerar-pagamento-online")
+    @Operation(summary = "Gera ou regenera o pagamento online (PIX/Boleto) do pedido", description = "Tenta gerar o pagamento no Mercado Pago caso ainda não exista ou tenha falhado.")
+    public ResponseEntity<PedidoResponseDTO> gerarPagamentoOnlineManual(
             @PathVariable("id") Long id,
             @RequestParam(required = false) Long pagamentoId) {
-        return ResponseEntity.ok(pedidoService.gerarPagamentoPixManual(id, pagamentoId));
+        return ResponseEntity.ok(pedidoService.gerarPagamentoOnlineManual(id, pagamentoId));
     }
 
     @PostMapping(value = "/{id}/nota-fiscal", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
@@ -143,11 +143,11 @@ public class PedidoController {
         return ResponseEntity.ok().build();
     }
 
-    @PostMapping("/{id}/pagamentos/{pagamentoId}/notificar-pix")
-    @Operation(summary = "Envia e-mail de cobrança manual de PIX (ADMIN)", description = "Envia e-mail ao cliente com o código copia e cola e instruções para pagamento.")
+    @PostMapping("/{id}/pagamentos/{pagamentoId}/notificar-cobranca")
+    @Operation(summary = "Envia e-mail de cobrança manual (PIX/Boleto) (ADMIN)", description = "Envia e-mail ao cliente com dados de pagamento (PIX ou Boleto) e instruções.")
     @org.springframework.security.access.prepost.PreAuthorize("hasRole('ADMIN')")
-    public ResponseEntity<Void> notificarCobrancaPix(@PathVariable("id") Long id, @PathVariable("pagamentoId") Long pagamentoId) {
-        pedidoService.notificarCobrancaPix(id, pagamentoId);
+    public ResponseEntity<Void> notificarCobrancaPagamento(@PathVariable("id") Long id, @PathVariable("pagamentoId") Long pagamentoId) {
+        pedidoService.notificarCobrancaPagamento(id, pagamentoId);
         return ResponseEntity.ok().build();
     }
 

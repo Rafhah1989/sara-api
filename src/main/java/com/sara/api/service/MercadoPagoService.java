@@ -1,13 +1,25 @@
 package com.sara.api.service;
 
 import com.mercadopago.MercadoPagoConfig;
+import com.mercadopago.client.common.AddressRequest;
+import com.mercadopago.client.common.IdentificationRequest;
 import com.mercadopago.client.payment.PaymentClient;
 import com.mercadopago.client.payment.PaymentCreateRequest;
 import com.mercadopago.client.payment.PaymentPayerRequest;
+import com.mercadopago.client.payment.PaymentPointOfInteractionRequest;
+import com.mercadopago.client.payment.PaymentTransactionDataRequest;
+import com.mercadopago.client.payment.PaymentRulesRequest;
+import com.mercadopago.client.payment.PaymentDataRequest;
+import com.mercadopago.client.payment.PaymentMethodRequest;
+import com.mercadopago.client.payment.PaymentFeeRequest;
+import com.mercadopago.client.payment.PaymentDiscountRequest;
 import com.mercadopago.exceptions.MPApiException;
 import com.mercadopago.exceptions.MPException;
 import com.mercadopago.resources.payment.Payment;
+import com.mercadopago.client.payment.PaymentPayerAddressRequest;
+import com.sara.api.model.ConfiguracaoBoleto;
 import com.sara.api.model.Pagamento;
+import java.math.BigDecimal;
 import com.sara.api.model.Pedido;
 import com.sara.api.model.Usuario;
 import com.sara.api.repository.PagamentoRepository;
@@ -23,6 +35,7 @@ import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 
@@ -48,6 +61,9 @@ public class MercadoPagoService {
     @Lazy
     private PedidoService pedidoService;
 
+    @Autowired
+    private ConfiguracaoBoletoService configuracaoBoletoService;
+
     @PostConstruct
     public void init() {
         if (accessToken == null || accessToken.trim().isEmpty()) {
@@ -58,14 +74,20 @@ public class MercadoPagoService {
 
     @Scheduled(fixedDelay = 30000) // Executa a cada 30 segundos
     @Transactional
-    public void verificarPagamentosPixPendentes() {
+    public void verificarPagamentosOnlinePendentes() {
         try {
             OffsetDateTime agora = OffsetDateTime.now();
             List<Pagamento> pendentes = pagamentoRepository
-                .findAllByPagoFalseAndPagamentoOnlineTrueAndMercadopagoPagamentoIdIsNotNullAndDataExpiracaoPixAfter(agora);
+                .findAllByPagoFalseAndPagamentoOnlineTrueAndMercadopagoPagamentoIdIsNotNullAndDataExpiracaoAfter(agora);
+            
+            // Filtra Boletos: se tem dados de boleto, não precisa de polling agressivo (Webhook atualiza)
+            if (pendentes != null) {
+                pendentes.removeIf(p -> (p.getBoletoPdfUrl() != null && !p.getBoletoPdfUrl().isBlank()) 
+                        || (p.getBoletoLinhaDigitavel() != null && !p.getBoletoLinhaDigitavel().isBlank()));
+            }
             
             if (!pendentes.isEmpty()) {
-                System.out.println(">>> [POLLING] Iniciando varredura de " + pendentes.size() + " pagamentos PIX pendentes...");
+                System.out.println(">>> [POLLING] Iniciando varredura de " + pendentes.size() + " pagamentos online pendentes...");
                 for (Pagamento p : pendentes) {
                     try {
                         verificarStatusPagamento(p.getMercadopagoPagamentoId());
@@ -172,12 +194,160 @@ public class MercadoPagoService {
                 } else {
                     System.err.println("ALERTA: Recebido pagamento aprovado do MP (" + paymentId + ") mas o ID não foi encontrado no nosso banco de dados.");
                 }
+            } else if ("cancelled".equals(payment.getStatus())) {
+                Pagamento pagamento = pagamentoRepository.findByMercadopagoPagamentoId(paymentId)
+                        .orElse(null);
+                
+                if (pagamento != null) {
+                    System.out.println("Pagamento #" + pagamento.getId() + " cancelado no Mercado Pago. Limpando dados de integração...");
+                    pagamento.setMercadopagoPagamentoId(null);
+                    pagamento.setBoletoPdfUrl(null);
+                    pagamento.setBoletoLinhaDigitavel(null);
+                    pagamento.setBoletoCodigoBarras(null);
+                    pagamento.setPixCopiaECola(null);
+                    pagamento.setPixQrCode(null);
+                    pagamentoRepository.save(pagamento);
+                }
             }
             return payment.getStatus();
         } catch (Exception e) {
             System.err.println("Erro ao verificar status: " + e.getMessage());
             return "Erro: " + e.getMessage();
         }
+    }
+
+    public Payment criarPagamentoBoleto(Pagamento pagamento) throws MPException, MPApiException {
+        Pedido pedido = pagamento.getPedido();
+        Usuario user = pedido.getUsuario();
+
+        // 0. Carregar configurações de boleto
+        ConfiguracaoBoleto configBoleto = configuracaoBoletoService.getConfiguracao();
+
+        PaymentClient client = new PaymentClient();
+
+        // 1. Validar se o usuário tem os dados mínimos (BACEN exige endereço para boleto)
+        if (user.getEndereco() == null || user.getNumero() == null || user.getCep() == null) {
+            System.err.println(">>> ERRO: Usuário " + user.getNome() + " não possui endereço completo para gerar boleto.");
+        }
+
+
+        // 2. Montar o Payer com Nome, Sobrenome e Endereço Completo
+        String fullName = user.getNome();
+        String firstName = fullName;
+        String lastName = fullName; // Fallback se tiver apenas um nome
+        
+        if (fullName != null && fullName.trim().contains(" ")) {
+            int lastSpace = fullName.trim().lastIndexOf(" ");
+            firstName = fullName.trim().substring(0, lastSpace);
+            lastName = fullName.trim().substring(lastSpace + 1);
+        }
+
+        PaymentPayerRequest payer = PaymentPayerRequest.builder()
+            .email(user.getEmail())
+            .firstName(firstName)
+            .lastName(lastName)
+            .identification(IdentificationRequest.builder()
+                .type(user.getCpfCnpj().length() > 11 ? "CNPJ" : "CPF")
+                .number(user.getCpfCnpj())
+                .build())
+            .address(PaymentPayerAddressRequest.builder()
+                .zipCode(user.getCep().replaceAll("[^0-9]", ""))
+                .streetName(user.getEndereco())
+                .streetNumber(String.valueOf(user.getNumero()))
+                .neighborhood(user.getBairro())
+                .city(user.getCidade())
+                .federalUnit(user.getUf())
+                .build())
+            .build();
+
+        // 3. Montar as Regras (Multa, Juros, Desconto)
+        PaymentFeeRequest fine = null;
+        if (configBoleto.getMultaValor() != null && configBoleto.getMultaValor().compareTo(BigDecimal.ZERO) > 0) {
+            fine = PaymentFeeRequest.builder()
+                .type(configBoleto.getMultaTipo())
+                .value(configBoleto.getMultaValor())
+                .build();
+        }
+
+        PaymentFeeRequest interest = null;
+        if (configBoleto.getJurosValor() != null && configBoleto.getJurosValor().compareTo(BigDecimal.ZERO) > 0) {
+            interest = PaymentFeeRequest.builder()
+                .type(configBoleto.getJurosTipo())
+                .value(configBoleto.getJurosValor())
+                .build();
+        }
+
+        List<PaymentDiscountRequest> discounts = null;
+        if (configBoleto.getDescontoValor() != null && configBoleto.getDescontoValor().compareTo(BigDecimal.ZERO) > 0) {
+            PaymentDiscountRequest discount = PaymentDiscountRequest.builder()
+                .type(configBoleto.getDescontoTipo())
+                .value(configBoleto.getDescontoValor())
+                .limitDate(pagamento.getDataExpiracao().minusDays(configBoleto.getDescontoDiasAntecedencia()).toLocalDate())
+                .build();
+            discounts = Collections.singletonList(discount);
+        }
+
+        PaymentRulesRequest rules = PaymentRulesRequest.builder()
+            .fine(fine)
+            .interest(interest)
+            .discounts(discounts)
+            .build();
+
+        PaymentDataRequest paymentData = PaymentDataRequest.builder()
+            .rules(rules)
+            .build();
+
+        PaymentMethodRequest paymentMethod = PaymentMethodRequest.builder()
+            .data(paymentData)
+            .build();
+
+        // 4. Criar a Requisição de Boleto
+        PaymentCreateRequest createRequest = PaymentCreateRequest.builder()
+            .transactionAmount(pagamento.getValor())
+            .description("Boleto - Pedido #" + pedido.getId() + " - Parcela #" + (pedido.getPagamentos().indexOf(pagamento) + 1))
+            .paymentMethodId("bolbradesco")
+            .paymentMethod(paymentMethod)
+            .notificationUrl(urlWebhook)
+            .dateOfExpiration(pagamento.getDataExpiracao())
+            .payer(payer)
+            .externalReference(String.valueOf(pedido.getId()))
+            .pointOfInteraction(PaymentPointOfInteractionRequest.builder()
+                .transactionData(PaymentTransactionDataRequest.builder()
+                    .build())
+                .build())
+            .build();
+
+        Payment payment = client.create(createRequest);
+
+        if (payment != null) {
+            // 1. Extração do PDF (Point of Interaction)
+            if (payment.getPointOfInteraction() != null && payment.getPointOfInteraction().getTransactionData() != null) {
+                pagamento.setBoletoPdfUrl(payment.getPointOfInteraction().getTransactionData().getTicketUrl());
+            }
+
+            // 2. Extração da Linha Digitável e Código de Barras (Transaction Details)
+            if (payment.getTransactionDetails() != null) {
+                var details = payment.getTransactionDetails();
+                pagamento.setBoletoLinhaDigitavel(details.getDigitableLine());
+                
+                // Fallback para PDF se vier nulo do PointOfInteraction
+                if (pagamento.getBoletoPdfUrl() == null || pagamento.getBoletoPdfUrl().isBlank()) {
+                    pagamento.setBoletoPdfUrl(details.getExternalResourceUrl());
+                }
+
+                if (details.getBarcode() != null) {
+                    pagamento.setBoletoCodigoBarras(details.getBarcode().getContent());
+                }
+            }
+
+            pagamento.setMercadopagoPagamentoId(String.valueOf(payment.getId()));
+            pagamento.setPagamentoOnline(true);
+            pagamentoRepository.save(pagamento);
+            
+            System.out.println("SUCESSO: Boleto gerado para Pagamento #" + pagamento.getId() + " - ID MP: " + payment.getId());
+        }
+
+        return payment;
     }
 
     public Payment criarPagamentoPix(Pagamento pagamento) throws MPException, MPApiException {
@@ -219,12 +389,50 @@ public class MercadoPagoService {
         }
 
         PaymentCreateRequest request = builder.payer(payerBuilder.build()).build();
+        Payment payment = client.create(request);
 
-        return client.create(request);
+        if (payment != null) {
+            // Extração de dados PIX (Point of Interaction)
+            if (payment.getPointOfInteraction() != null && payment.getPointOfInteraction().getTransactionData() != null) {
+                var data = payment.getPointOfInteraction().getTransactionData();
+                pagamento.setPixCopiaECola(data.getQrCode());
+                pagamento.setPixQrCode(data.getQrCodeBase64());
+            }
+
+            pagamento.setMercadopagoPagamentoId(String.valueOf(payment.getId()));
+            pagamento.setPagamentoOnline(true);
+            pagamento.setPago(false);
+            if (payment.getDateOfExpiration() != null) {
+                pagamento.setDataExpiracao(payment.getDateOfExpiration());
+            }
+
+            pagamentoRepository.save(pagamento);
+            System.out.println("SUCESSO: PIX gerado para Pagamento #" + pagamento.getId() + " - ID MP: " + payment.getId());
+        }
+
+        return payment;
     }
 
     public Payment buscarPagamento(String paymentId) throws MPException, MPApiException {
         PaymentClient client = new PaymentClient();
         return client.get(Long.parseLong(paymentId));
+    }
+
+    @Transactional
+    public String cancelarPagamento(String paymentId) {
+        if (paymentId == null || paymentId.isEmpty()) return "ID nulo";
+        
+        try {
+            System.out.println("Solicitando cancelamento do pagamento Mercado Pago: " + paymentId);
+            PaymentClient client = new PaymentClient();
+            
+            // O SDK possui o método cancel nativo na PaymentClient
+            Payment payment = client.cancel(Long.parseLong(paymentId));
+            System.out.println("SUCESSO: Pagamento MP " + paymentId + " alterado para: " + payment.getStatus());
+            return payment.getStatus();
+        } catch (Exception e) {
+            System.err.println("ERRO ao cancelar pagamento MP " + paymentId + ": " + e.getMessage());
+            return "ERRO: " + e.getMessage();
+        }
     }
 }

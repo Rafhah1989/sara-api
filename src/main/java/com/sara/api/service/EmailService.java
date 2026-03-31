@@ -326,6 +326,227 @@ public class EmailService {
 
     @Async
     @Retryable(value = Exception.class, maxAttempts = 3, backoff = @Backoff(delay = 5000))
+    public void enviarEmailCobrancaBoleto(Pedido pedido, com.sara.api.model.Pagamento pagamento) {
+        log.info("Iniciando envio de e-mail de cobrança Boleto para o pedido #{}", pedido.getId());
+
+        Configuracao config = configuracaoRepository.findAll().stream().findFirst().orElse(null);
+        if (config == null || !Boolean.TRUE.equals(config.getEmailAtivo())) {
+            log.info("Envio de e-mail desativado.");
+            return;
+        }
+
+        try {
+            JavaMailSenderImpl mailSender = createMailSender(config);
+            MimeMessage message = mailSender.createMimeMessage();
+            MimeMessageHelper helper = new MimeMessageHelper(message, true, "UTF-8");
+
+            String subject = String.format("Aguardando Pagamento - Pedido #%d - Parcela Boleto", pedido.getId());
+            helper.setSubject(subject);
+            helper.setFrom(config.getMailUsername());
+            helper.setTo(pedido.getUsuario().getEmail());
+
+            StringBuilder sb = new StringBuilder();
+            sb.append("<div style='font-family: Arial, sans-serif; color: #333; line-height: 1.6;'>");
+            sb.append("<h1 style='color: #004085;'>Seu boleto está com o pagamento pendente!</h1>");
+            sb.append("<p>Olá, <strong>").append(pedido.getUsuario().getNome()).append("</strong>.</p>");
+            sb.append("<p>Lembramos que o seu pedido <strong>#").append(pedido.getId())
+                    .append("</strong> possui uma parcela em Boleto aguardando pagamento.</p>");
+            
+            sb.append("<div style='background: #f8f9fa; border: 1px solid #dee2e6; padding: 15px; border-radius: 8px; margin: 20px 0;'>");
+            sb.append("<p style='margin: 0;'><strong>Valor da Parcela:</strong> R$ ").append(String.format("%.2f", pagamento.getValor().doubleValue()).replace(".", ",")).append("</p>");
+            if (pagamento.getDataExpiracao() != null) {
+                DateTimeFormatter df = DateTimeFormatter.ofPattern("dd/MM/yyyy");
+                sb.append("<p style='margin: 5px 0 0 0;'><strong>Vencimento:</strong> ").append(pagamento.getDataExpiracao().format(df)).append("</p>");
+            }
+            sb.append("</div>");
+
+            sb.append("<p><strong>Linha Digitável:</strong><br/>");
+            sb.append("<code style='background: #fdf8e6; padding: 8px; border: 1px solid #ddd; display: block; word-break: break-all; font-size: 0.9em;'>")
+                    .append(pagamento.getBoletoLinhaDigitavel()).append("</code></p>");
+
+            sb.append("<p style='margin-top: 20px;'>Para baixar o seu boleto em PDF, clique no botão abaixo:</p>");
+            sb.append("<a href='").append(pagamento.getBoletoPdfUrl()).append("' style='display: inline-block; padding: 12px 24px; background-color: #007bff; color: #fff; text-decoration: none; border-radius: 4px; font-weight: bold;'>Baixar PDF do Boleto</a>");
+            
+            sb.append("<br/><br/><p>Atenciosamente,</p>");
+            sb.append("<p><strong>Equipe Sara Imagens</strong></p>");
+            sb.append("</div>");
+
+            helper.setText(sb.toString(), true);
+            mailSender.send(message);
+            log.info("E-mail de cobrança de boleto enviado para o cliente do pedido #{}", pedido.getId());
+
+        } catch (Exception e) {
+            log.error("Erro ao enviar e-mail de cobrança de boleto para o pedido #{}: {}", pedido.getId(), e.getMessage());
+        }
+    }
+
+    @Async
+    @Retryable(value = Exception.class, maxAttempts = 3, backoff = @Backoff(delay = 5000))
+    public void enviarEmailTodosBoletos(Pedido pedido, java.util.List<com.sara.api.model.Pagamento> boletos) {
+        if (boletos == null || boletos.isEmpty()) return;
+        
+        log.info("Iniciando envio de e-mail consolidado de {} boletos para o pedido #{}", boletos.size(), pedido.getId());
+
+        Configuracao config = configuracaoRepository.findAll().stream().findFirst().orElse(null);
+        if (config == null || !Boolean.TRUE.equals(config.getEmailAtivo())) {
+            log.info("Envio de e-mail desativado.");
+            return;
+        }
+
+        try {
+            JavaMailSenderImpl mailSender = createMailSender(config);
+            MimeMessage message = mailSender.createMimeMessage();
+            MimeMessageHelper helper = new MimeMessageHelper(message, true, "UTF-8");
+
+            helper.setSubject(String.format("Boletos de Pagamento Gerados - Pedido #%d", pedido.getId()));
+            helper.setFrom(config.getMailUsername());
+            helper.setTo(pedido.getUsuario().getEmail());
+
+            StringBuilder sb = new StringBuilder();
+            sb.append("<div style='font-family: Arial, sans-serif; color: #333; line-height: 1.6;'>");
+            sb.append("<h1 style='color: #004085;'>Seus boletos estão prontos!</h1>");
+            sb.append("<p>Olá, <strong>").append(pedido.getUsuario().getNome()).append("</strong>.</p>");
+            sb.append("<p>Informamos que os boletos referentes às parcelas do seu pedido <strong>#").append(pedido.getId()).append("</strong> foram gerados com sucesso.</p>");
+            
+            sb.append("<p>Abaixo estão os dados para pagamento de cada parcela:</p>");
+
+            DateTimeFormatter df = DateTimeFormatter.ofPattern("dd/MM/yyyy");
+            int i = 1;
+            for (com.sara.api.model.Pagamento p : boletos) {
+                sb.append("<div style='background: #f8f9fa; border: 1px solid #dee2e6; padding: 15px; border-radius: 8px; margin: 20px 0;'>");
+                sb.append("<p style='margin: 0; font-size: 1.1em;'><strong>Parcela #").append(i++).append("</strong></p>");
+                sb.append("<p style='margin: 10px 0 5px 0;'><strong>Valor:</strong> R$ ").append(String.format("%.2f", p.getValor().doubleValue()).replace(".", ",")).append("</p>");
+                
+                if (p.getDataVencimento() != null) {
+                    sb.append("<p style='margin: 0 0 5px 0;'><strong>Data de Vencimento:</strong> ").append(p.getDataVencimento().format(df)).append("</p>");
+                }
+                
+                if (p.getDataExpiracao() != null) {
+                    sb.append("<p style='margin: 0 0 10px 0;'><strong>Vencimento Mercado Pago:</strong> ").append(p.getDataExpiracao().format(df)).append("</p>");
+                }
+                
+                sb.append("<p style='margin: 15px 0 5px 0;'><strong>Linha Digitável:</strong></p>");
+                sb.append("<code style='background: #fff; padding: 8px; border: 1px solid #ddd; display: block; word-break: break-all; font-size: 0.9em;'>")
+                        .append(p.getBoletoLinhaDigitavel()).append("</code>");
+
+                sb.append("<p style='margin-top: 15px;'><a href='").append(p.getBoletoPdfUrl()).append("' style='display: inline-block; padding: 10px 20px; background-color: #007bff; color: #fff; text-decoration: none; border-radius: 4px; font-weight: bold;'>Baixar PDF do Boleto</a></p>");
+                sb.append("</div>");
+            }
+            
+            sb.append("<p style='margin-top: 20px;'>Você também pode acessar qualquer um desses boletos diretamente pela nossa plataforma na área de 'Meus Pedidos'.</p>");
+            sb.append("<br/><p>Atenciosamente,</p>");
+            sb.append("<p><strong>Equipe Sara Imagens</strong></p></div>");
+
+            helper.setText(sb.toString(), true);
+            mailSender.send(message);
+
+            // Alerta para Administradores
+            if (config.getEmailsNotificacao() != null && !config.getEmailsNotificacao().isEmpty()) {
+                MimeMessage adminMsg = mailSender.createMimeMessage();
+                MimeMessageHelper adminHelper = new MimeMessageHelper(adminMsg, true, "UTF-8");
+                adminHelper.setSubject(String.format("ALERTA: Boletos Gerados em Lote - Pedido #%d", pedido.getId()));
+                adminHelper.setFrom(config.getMailUsername());
+                adminHelper.setTo(config.getEmailsNotificacao().split(","));
+
+                StringBuilder adminSb = new StringBuilder();
+                adminSb.append("<div style='font-family: Arial, sans-serif; color: #333;'>");
+                adminSb.append("<h2 style='color: #004085;'>Boletos Emitidos via Mercado Pago (Lote)</h2>");
+                adminSb.append("<p><strong>Pedido:</strong> #").append(pedido.getId()).append("</p>");
+                adminSb.append("<p><strong>Cliente:</strong> ").append(pedido.getUsuario().getNome()).append("</p>");
+                adminSb.append("<p><strong>Total de Boletos:</strong> ").append(boletos.size()).append("</p>");
+                adminSb.append("<p>Os boletos foram enviados automaticamente ao cliente em um e-mail consolidado.</p>");
+                adminSb.append("</div>");
+
+                adminHelper.setText(adminSb.toString(), true);
+                mailSender.send(adminMsg);
+            }
+
+            log.info("E-mails de boletos em lote enviados com sucesso para o pedido #{}", pedido.getId());
+
+        } catch (Exception e) {
+            log.error("Erro ao enviar e-mails de boletos em lote para o pedido #{}: {}", pedido.getId(), e.getMessage());
+        }
+    }
+
+    @Async
+    @Retryable(value = Exception.class, maxAttempts = 3, backoff = @Backoff(delay = 5000))
+    public void enviarEmailBoletoGerado(com.sara.api.model.Pagamento pagamento) {
+        Pedido pedido = pagamento.getPedido();
+        log.info("Iniciando envio de e-mails de novo boleto para o pedido #{}", pedido.getId());
+
+        Configuracao config = configuracaoRepository.findAll().stream().findFirst().orElse(null);
+        if (config == null || !Boolean.TRUE.equals(config.getEmailAtivo())) {
+            log.info("Envio de e-mail desativado.");
+            return;
+        }
+
+        try {
+            JavaMailSenderImpl mailSender = createMailSender(config);
+            
+            // 1. E-mail para o Cliente
+            MimeMessage clientMsg = mailSender.createMimeMessage();
+            MimeMessageHelper clientHelper = new MimeMessageHelper(clientMsg, true, "UTF-8");
+            clientHelper.setSubject(String.format("Novo Boleto Disponível - Pedido #%d", pedido.getId()));
+            clientHelper.setFrom(config.getMailUsername());
+            clientHelper.setTo(pedido.getUsuario().getEmail());
+
+            StringBuilder clientSb = new StringBuilder();
+            clientSb.append("<div style='font-family: Arial, sans-serif; color: #333; line-height: 1.6;'>");
+            clientSb.append("<h1 style='color: #004085;'>Seu boleto está pronto para pagamento!</h1>");
+            clientSb.append("<p>Olá, <strong>").append(pedido.getUsuario().getNome()).append("</strong>.</p>");
+            clientSb.append("<p>Informamos que o boleto referente a uma parcela do seu pedido <strong>#").append(pedido.getId()).append("</strong> foi gerado com sucesso.</p>");
+            
+            clientSb.append("<div style='background: #e7f3ff; border: 1px solid #b8daff; padding: 15px; border-radius: 8px; margin: 20px 0;'>");
+            clientSb.append("<p style='margin: 0;'><strong>Valor:</strong> R$ ").append(String.format("%.2f", pagamento.getValor().doubleValue()).replace(".", ",")).append("</p>");
+            if (pagamento.getDataExpiracao() != null) {
+                DateTimeFormatter df = DateTimeFormatter.ofPattern("dd/MM/yyyy");
+                clientSb.append("<p style='margin: 5px 0 0 0;'><strong>Vencimento:</strong> ").append(pagamento.getDataExpiracao().format(df)).append("</p>");
+            }
+            clientSb.append("</div>");
+
+            clientSb.append("<p><strong>Linha Digitável:</strong><br/>");
+            clientSb.append("<code style='background: #f8f9fa; padding: 5px; border: 1px solid #ddd; display: block; word-break: break-all;'>")
+                    .append(pagamento.getBoletoLinhaDigitavel()).append("</code></p>");
+
+            clientSb.append("<p style='margin-top: 20px;'>Para visualizar ou imprimir o boleto em PDF, clique no botão abaixo:</p>");
+            clientSb.append("<a href='").append(pagamento.getBoletoPdfUrl()).append("' style='display: inline-block; padding: 12px 24px; background-color: #007bff; color: #fff; text-decoration: none; border-radius: 4px; font-weight: bold;'>Visualizar Boleto PDF</a>");
+            
+            clientSb.append("<br/><br/><p>Atenciosamente,</p>");
+            clientSb.append("<p><strong>Equipe Sara Imagens</strong></p></div>");
+
+            clientHelper.setText(clientSb.toString(), true);
+            mailSender.send(clientMsg);
+
+            // 2. Alerta para Administradores
+            if (config.getEmailsNotificacao() != null && !config.getEmailsNotificacao().isEmpty()) {
+                MimeMessage adminMsg = mailSender.createMimeMessage();
+                MimeMessageHelper adminHelper = new MimeMessageHelper(adminMsg, true, "UTF-8");
+                adminHelper.setSubject(String.format("ALERTA: Novo Boleto Gerado - Pedido #%d", pedido.getId()));
+                adminHelper.setFrom(config.getMailUsername());
+                adminHelper.setTo(config.getEmailsNotificacao().split(","));
+
+                StringBuilder adminSb = new StringBuilder();
+                adminSb.append("<div style='font-family: Arial, sans-serif; color: #333;'>");
+                adminSb.append("<h2 style='color: #004085;'>Novo Boleto Emitido via Mercado Pago</h2>");
+                adminSb.append("<p><strong>Pedido:</strong> #").append(pedido.getId()).append("</p>");
+                adminSb.append("<p><strong>Cliente:</strong> ").append(pedido.getUsuario().getNome()).append("</p>");
+                adminSb.append("<p><strong>Valor:</strong> R$ ").append(String.format("%.2f", pagamento.getValor().doubleValue()).replace(".", ",")).append("</p>");
+                adminSb.append("<p>O boleto foi enviado automaticamente ao cliente.</p>");
+                adminSb.append("</div>");
+
+                adminHelper.setText(adminSb.toString(), true);
+                mailSender.send(adminMsg);
+            }
+
+            log.info("E-mails de novo boleto enviados com sucesso para o pedido #{}", pedido.getId());
+
+        } catch (Exception e) {
+            log.error("Erro ao enviar e-mails de novo boleto para o pedido #{}: {}", pedido.getId(), e.getMessage());
+        }
+    }
+
+    @Async
+    @Retryable(value = Exception.class, maxAttempts = 3, backoff = @Backoff(delay = 5000))
     public void enviarEmailPagamentoConfirmado(Pedido pedido, com.sara.api.model.Pagamento pagamento) {
         log.info("Iniciando envio de e-mails de confirmação de pagamento para o pedido #{}", pedido.getId());
 
@@ -390,7 +611,62 @@ public class EmailService {
         }
     }
 
+    @Async
+    @Retryable(value = Exception.class, maxAttempts = 3, backoff = @Backoff(delay = 5000))
+    public void enviarEmailPagamentoOnlineHabilitado(Pedido pedido) {
+        log.info("Iniciando envio de e-mail de pagamento online habilitado para o pedido #{}", pedido.getId());
+
+        Configuracao config = configuracaoRepository.findAll().stream().findFirst().orElse(null);
+        if (config == null || !Boolean.TRUE.equals(config.getEmailAtivo())) {
+            log.info("Envio de e-mail desativado.");
+            return;
+        }
+
+        try {
+            JavaMailSenderImpl mailSender = createMailSender(config);
+            MimeMessage message = mailSender.createMimeMessage();
+            MimeMessageHelper helper = new MimeMessageHelper(message, true, "UTF-8");
+
+            String subject = String.format("Pagamento Online Liberado - Pedido #%d", pedido.getId());
+            helper.setSubject(subject);
+            helper.setFrom(config.getMailUsername());
+            helper.setTo(pedido.getUsuario().getEmail());
+
+            StringBuilder sb = new StringBuilder();
+            sb.append("<div style='font-family: Arial, sans-serif; color: #333; line-height: 1.6;'>");
+            sb.append("<h1 style='color: #28a745;'>Pagamento Online Liberado!</h1>");
+            sb.append("<p>Olá, <strong>").append(pedido.getUsuario().getNome()).append("</strong>.</p>");
+            sb.append("<p>Informamos que o pagamento online (PIX ou Boleto) foi <strong>habilitado manualmente</strong> para o seu pedido <strong>#").append(pedido.getId()).append("</strong>.</p>");
+            
+            sb.append("<p>Agora você já pode realizar o pagamento das parcelas diretamente pelo nosso sistema.</p>");
+            
+            sb.append("<div style='background: #e9ecef; border-left: 5px solid #28a745; padding: 15px; margin: 20px 0;'>");
+            sb.append("<p style='margin: 0;'><strong>Como pagar:</strong></p>");
+            sb.append("<ol>");
+            sb.append("<li>Acesse o sistema com seu login.</li>");
+            sb.append("<li>Vá em <strong>'Meus Pedidos'</strong>.</li>");
+            sb.append("<li>Localize o pedido #").append(pedido.getId()).append(".</li>");
+            sb.append("<li>Clique nos ícones de <strong>QR Code (PIX)</strong> ou <strong>PDF (Boleto)</strong> disponíveis nas parcelas.</li>");
+            sb.append("</ol>");
+            sb.append("</div>");
+
+            sb.append("<p>Se tiver qualquer dúvida, entre em contato conosco.</p>");
+            sb.append("<br/>");
+            sb.append("<p>Atenciosamente,</p>");
+            sb.append("<p><strong>Equipe Sara Imagens</strong></p>");
+            sb.append("</div>");
+
+            helper.setText(sb.toString(), true);
+            mailSender.send(message);
+            log.info("E-mail de pagamento online habilitado enviado para o cliente do pedido #{}", pedido.getId());
+
+        } catch (Exception e) {
+            log.error("Erro ao enviar e-mail de pagamento online habilitado para o pedido #{}: {}", pedido.getId(), e.getMessage());
+        }
+    }
+
     private JavaMailSenderImpl createMailSender(Configuracao config) {
+
         JavaMailSenderImpl mailSender = new JavaMailSenderImpl();
         mailSender.setHost(config.getMailHost());
         mailSender.setPort(config.getMailPort());

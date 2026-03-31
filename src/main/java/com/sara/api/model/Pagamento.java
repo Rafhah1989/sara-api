@@ -51,6 +51,15 @@ public class Pagamento {
     @Column(name = "pagamento_online")
     private Boolean pagamentoOnline = false;
 
-    @Column(name = "data_expiracao_pix")
-    private OffsetDateTime dataExpiracaoPix;
+    @Column(name = "data_expiracao")
+    private OffsetDateTime dataExpiracao;
+
+    @Column(name = "boleto_pdf_url", columnDefinition = "TEXT")
+    private String boletoPdfUrl;
+
+    @Column(name = "boleto_linha_digitavel", columnDefinition = "TEXT")
+    private String boletoLinhaDigitavel;
+
+    @Column(name = "boleto_codigo_barras", columnDefinition = "TEXT")
+    private String boletoCodigoBarras;
 }

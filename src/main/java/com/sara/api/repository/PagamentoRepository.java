@@ -12,5 +12,5 @@ public interface PagamentoRepository extends JpaRepository<Pagamento, Long> {
     List<Pagamento> findByPedidoId(Long pedidoId);
     java.util.Optional<Pagamento> findByMercadopagoPagamentoId(String mercadopagoPagamentoId);
     
-    List<Pagamento> findAllByPagoFalseAndPagamentoOnlineTrueAndMercadopagoPagamentoIdIsNotNullAndDataExpiracaoPixAfter(OffsetDateTime now);
+    List<Pagamento> findAllByPagoFalseAndPagamentoOnlineTrueAndMercadopagoPagamentoIdIsNotNullAndDataExpiracaoAfter(OffsetDateTime now);
 }

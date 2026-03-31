@@ -119,7 +119,7 @@ class PedidoServiceTest {
         pedidoSalvo.setProdutos(new ArrayList<>());
         Pagamento pagamento = new Pagamento();
         pagamento.setPedido(pedidoSalvo);
-        pagamento.setDataExpiracaoPix(OffsetDateTime.now().plusMinutes(15));
+        pagamento.setDataExpiracao(OffsetDateTime.now().plusMinutes(15));
         pedidoSalvo.getPagamentos().add(pagamento);
         
         
@@ -137,13 +137,13 @@ class PedidoServiceTest {
     }
 
     @Test
-    @DisplayName("Deve regerar PIX quando estiver expirado")
-    void deveRegerarPixQuandoExpirado() {
+    @DisplayName("Deve regerar pagamento online quando estiver expirado")
+    void deveRegerarPagamentoOnlineQuandoExpirado() {
         // GIVEN
         Pedido pedidoExpirado = createPedidoMock(1L);
         Pagamento pagamento = new Pagamento();
         pagamento.setPedido(pedidoExpirado);
-        pagamento.setDataExpiracaoPix(OffsetDateTime.now().minusMinutes(5));
+        pagamento.setDataExpiracao(OffsetDateTime.now().minusMinutes(5));
         pagamento.setPagamentoOnline(true);
         pagamento.setMercadopagoPagamentoId("old-id");
         
@@ -166,7 +166,7 @@ class PedidoServiceTest {
         } catch (Exception e) {}
 
         // WHEN
-        pedidoService.gerarPagamentoPixManual(1L, null);
+        pedidoService.gerarPagamentoOnlineManual(1L, null);
 
         // THEN
         try {
@@ -219,8 +219,8 @@ class PedidoServiceTest {
     }
 
     @Test
-    @DisplayName("Não deve permitir pagamento online se a forma de pagamento não for PIX")
-    void deveNegarPagamentoOnlineSeNaoForPix() throws MPException, MPApiException {
+    @DisplayName("Não deve permitir pagamento online se a forma de pagamento não for PIX ou BOLETO")
+    void deveNegarPagamentoOnlineSeNaoForOnline() throws MPException, MPApiException {
         // GIVEN
         PedidoRequestDTO request = new PedidoRequestDTO();
         request.setUsuarioId(1L);

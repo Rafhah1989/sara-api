@@ -15,7 +15,10 @@ public class PagamentoResponseDTO {
     private BigDecimal valor;
     private String pixCopiaECola;
     private String pixQrCode;
+    private String boletoPdfUrl;
+    private String boletoLinhaDigitavel;
+    private String boletoCodigoBarras;
     private String mercadopagoPagamentoId;
     private Boolean pagamentoOnline;
-    private OffsetDateTime dataExpiracaoPix;
+    private OffsetDateTime dataExpiracao;
 }

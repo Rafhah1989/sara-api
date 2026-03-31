@@ -14,18 +14,15 @@ import org.springframework.data.jpa.domain.Specification;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
-import org.springframework.core.io.InputStreamResource;
-import org.springframework.web.multipart.MultipartFile;
 import org.springframework.context.annotation.Lazy;
 import org.springframework.beans.factory.annotation.Autowired;
 import java.io.IOException;
-import com.mercadopago.exceptions.MPApiException;
-import com.mercadopago.exceptions.MPException;
-
+import org.springframework.web.multipart.MultipartFile;
+import org.springframework.core.io.InputStreamResource;
 import java.math.BigDecimal;
+import java.time.DayOfWeek;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
-import java.time.OffsetDateTime;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.stream.Collectors;
@@ -44,6 +41,10 @@ public class PedidoService {
     @Lazy
     private MercadoPagoService mercadoPagoService;
     
+    @Autowired
+    @Lazy
+    private PagamentoService pagamentoService;
+
     private final OciObjectStorageService ociService;
     private final PagamentoRepository pagamentoRepository;
 
@@ -230,13 +231,24 @@ public class PedidoService {
             unico.setPago(false);
             unico.setPagamentoOnline(Boolean.TRUE.equals(request.getPagamentoOnline()));
             unico.setFormaPagamento(saved.getFormaPagamento());
+            ajustarVencimentoBoleto(unico);
             pagamentoRepository.save(unico);
             saved.getPagamentos().add(unico);
         }
 
-        // Tenta gerar PIX para cada pagamento marcado como online
+        // Tenta gerar pagamento online (PIX ou Boleto) para cada pagamento marcado como online
+        boolean isAdminSave = SecurityContextHolder.getContext().getAuthentication() != null && 
+                             SecurityContextHolder.getContext().getAuthentication().getAuthorities().stream()
+                .anyMatch(a -> a.getAuthority().equals("ROLE_ADMIN"));
+        List<Pagamento> boletosGerados = new ArrayList<>();
         for (Pagamento p : saved.getPagamentos()) {
-            gerarPagamentoPixSeNecessario(p);
+            com.mercadopago.resources.payment.Payment mpP = gerarPagamentoOnlineSeNecessario(p, isAdminSave);
+            if (mpP != null && p.getFormaPagamento() != null && "BOLETO".equalsIgnoreCase(p.getFormaPagamento().getDescricao())) {
+                boletosGerados.add(p);
+            }
+        }
+        if (!boletosGerados.isEmpty()) {
+            emailService.enviarEmailTodosBoletos(saved, boletosGerados);
         }
 
         // Busca o pedido carregando todos os produtos e detalhes para evitar LazyInitializationException no e-mail assíncrono
@@ -284,13 +296,22 @@ public class PedidoService {
 
         Pedido updated = pedidoRepository.saveAndFlush(pedido);
         
-        // Tenta gerar PIX para cada pagamento marcado como online
+        // Tenta gerar pagamento online (PIX ou Boleto) para cada pagamento marcado como online
+        boolean isAdminUpdate = SecurityContextHolder.getContext().getAuthentication() != null && 
+                               SecurityContextHolder.getContext().getAuthentication().getAuthorities().stream()
+                .anyMatch(a -> a.getAuthority().equals("ROLE_ADMIN"));
+        List<Pagamento> boletosGeradosUpdate = new ArrayList<>();
         for (Pagamento p : updated.getPagamentos()) {
             // Se já tem um ID do MP, não tenta gerar novamente de forma automática durante o 'update'
-            // Isso evita disparar erros de API em produção se os dados forem sensíveis ou MP instável.
             if (p.getMercadopagoPagamentoId() == null || p.getMercadopagoPagamentoId().isEmpty()) {
-                gerarPagamentoPixSeNecessario(p);
+                com.mercadopago.resources.payment.Payment mpP = gerarPagamentoOnlineSeNecessario(p, isAdminUpdate);
+                if (mpP != null && p.getFormaPagamento() != null && "BOLETO".equalsIgnoreCase(p.getFormaPagamento().getDescricao())) {
+                    boletosGeradosUpdate.add(p);
+                }
             }
+        }
+        if (!boletosGeradosUpdate.isEmpty()) {
+            emailService.enviarEmailTodosBoletos(updated, boletosGeradosUpdate);
         }
 
         if (Boolean.TRUE.equals(request.getNotificar())) {
@@ -312,6 +333,20 @@ public class PedidoService {
             pedido.setObservacao(novaObs);
         }
         
+        // Remove e cancela pagamentos online pendentes
+        List<Pagamento> onlinePendentes = pedido.getPagamentos().stream()
+                .filter(p -> !Boolean.TRUE.equals(p.getPago()) && 
+                             (p.getMercadopagoPagamentoId() != null || Boolean.TRUE.equals(p.getPagamentoOnline())))
+                .collect(Collectors.toList());
+
+        for (Pagamento p : onlinePendentes) {
+            if (p.getMercadopagoPagamentoId() != null && !p.getMercadopagoPagamentoId().isEmpty()) {
+                mercadoPagoService.cancelarPagamento(p.getMercadopagoPagamentoId());
+            }
+            // Remove do pedido conforme solicitado: "excluir os pagamentos ainda não pagos"
+            pedido.getPagamentos().remove(p);
+        }
+
         pedidoRepository.save(pedido);
 
         // Busca o pedido carregando todos os produtos e detalhes para evitar LazyInitializationException no e-mail assíncrono
@@ -342,6 +377,7 @@ public class PedidoService {
                 for (Pagamento p : pedido.getPagamentos()) {
                     if (p.getDataVencimento() != null) {
                         p.setDataVencimento(p.getDataVencimento().plusDays(diasDiferenca));
+                        ajustarVencimentoBoleto(p);
                     }
                 }
             }
@@ -404,27 +440,8 @@ public class PedidoService {
             pedido.setFormaPagamento(fp);
         }
 
-
-        if (request.getPagamentos() != null) {
-            // Limpa a lista atual para que o orphanRemoval do Hibernate cuide das exclusões
-            pedido.getPagamentos().clear();
-            
-            for (PagamentoRequestDTO pDTO : request.getPagamentos()) {
-                Pagamento p = new Pagamento();
-                p.setValor(pDTO.getValor());
-                p.setDataVencimento(pDTO.getDataVencimento());
-                p.setPago(Boolean.TRUE.equals(pDTO.getPago()));
-                p.setPagamentoOnline(Boolean.TRUE.equals(pDTO.getPagamentoOnline()));
-                
-                if (pDTO.getFormaPagamentoId() != null) {
-                    p.setFormaPagamento(formaPagamentoRepository.getReferenceById(pDTO.getFormaPagamentoId()));
-                } else {
-                    p.setFormaPagamento(pedido.getFormaPagamento());
-                }
-                
-                p.setPedido(pedido);
-                pedido.getPagamentos().add(p);
-            }
+        if (request.getPagamentos() != null && !request.getPagamentos().isEmpty()) {
+            pagamentoService.gerenciarPagamentos(pedido, request.getPagamentos());
         }
         
         // Regra: Sempre deve haver ao menos um pagamento
@@ -434,7 +451,7 @@ public class PedidoService {
             p.setValor(pedido.getValorTotal());
             p.setDataVencimento(LocalDate.now());
             p.setPago(false);
-            p.setPagamentoOnline(Boolean.TRUE.equals(request.getPagamentoOnline()));
+            p.setPagamentoOnline(Boolean.TRUE.equals(request.getPagamentoOnline()) || pedido.getUsuario().getMetodoPagamentoAutorizado() == MetodoPagamentoAutorizado.APENAS_ONLINE);
             p.setFormaPagamento(pedido.getFormaPagamento());
             pedido.getPagamentos().add(p);
         }
@@ -483,8 +500,11 @@ public class PedidoService {
             pDTO.setPagamentoOnline(p.getPagamentoOnline());
             pDTO.setPixCopiaECola(p.getPixCopiaECola());
             pDTO.setPixQrCode(p.getPixQrCode());
+            pDTO.setBoletoPdfUrl(p.getBoletoPdfUrl());
+            pDTO.setBoletoLinhaDigitavel(p.getBoletoLinhaDigitavel());
+            pDTO.setBoletoCodigoBarras(p.getBoletoCodigoBarras());
             pDTO.setMercadopagoPagamentoId(p.getMercadopagoPagamentoId());
-            pDTO.setDataExpiracaoPix(p.getDataExpiracaoPix());
+            pDTO.setDataExpiracao(p.getDataExpiracao());
             if (p.getFormaPagamento() != null) {
                 pDTO.setFormaPagamentoId(p.getFormaPagamento().getId());
                 pDTO.setFormaPagamentoDescricao(p.getFormaPagamento().getDescricao());
@@ -543,8 +563,11 @@ public class PedidoService {
                 pDTO.setPagamentoOnline(p.getPagamentoOnline());
                 pDTO.setPixCopiaECola(p.getPixCopiaECola());
                 pDTO.setPixQrCode(p.getPixQrCode());
+                pDTO.setBoletoPdfUrl(p.getBoletoPdfUrl());
+                pDTO.setBoletoLinhaDigitavel(p.getBoletoLinhaDigitavel());
+                pDTO.setBoletoCodigoBarras(p.getBoletoCodigoBarras());
                 pDTO.setMercadopagoPagamentoId(p.getMercadopagoPagamentoId());
-                pDTO.setDataExpiracaoPix(p.getDataExpiracaoPix());
+                pDTO.setDataExpiracao(p.getDataExpiracao());
                 
                 if (p.getFormaPagamento() != null) {
                     pDTO.setFormaPagamentoId(p.getFormaPagamento().getId());
@@ -581,7 +604,7 @@ public class PedidoService {
     }
 
     @Transactional
-    public PedidoResponseDTO gerarPagamentoPixManual(Long id, Long pagamentoId) {
+    public PedidoResponseDTO gerarPagamentoOnlineManual(Long id, Long pagamentoId) {
         Pedido pedido = pedidoRepository.findById(id)
                 .orElseThrow(() -> new EntityNotFoundException("Pedido não encontrado"));
         
@@ -591,66 +614,70 @@ public class PedidoService {
             if (!p.getPedido().getId().equals(id)) {
                 throw new IllegalArgumentException("Pagamento não pertence ao pedido informado");
             }
-            gerarPagamentoPixSeNecessario(p);
+            com.mercadopago.resources.payment.Payment mpP = gerarPagamentoOnlineSeNecessario(p, true);
+            if (mpP != null && p.getFormaPagamento() != null && "BOLETO".equalsIgnoreCase(p.getFormaPagamento().getDescricao())) {
+                emailService.enviarEmailBoletoGerado(p);
+            }
         } else {
             // Compatibilidade: Busca apenas a PRIMEIRA parcela PIX Online Pendente
+            boolean isAdmin = org.springframework.security.core.context.SecurityContextHolder.getContext().getAuthentication() != null && 
+                              org.springframework.security.core.context.SecurityContextHolder.getContext().getAuthentication().getAuthorities().stream()
+                    .anyMatch(a -> a.getAuthority().equals("ROLE_ADMIN"));
             pedido.getPagamentos().stream()
                 .filter(p -> Boolean.TRUE.equals(p.getPagamentoOnline()) && 
                              !Boolean.TRUE.equals(p.getPago()) &&
                              p.getFormaPagamento() != null && 
-                             "PIX".equalsIgnoreCase(p.getFormaPagamento().getDescricao()))
+                             ("PIX".equalsIgnoreCase(p.getFormaPagamento().getDescricao()) || "BOLETO".equalsIgnoreCase(p.getFormaPagamento().getDescricao())))
                 .findFirst()
-                .ifPresent(this::gerarPagamentoPixSeNecessario);
+                .ifPresent(p -> {
+                    com.mercadopago.resources.payment.Payment mpP = gerarPagamentoOnlineSeNecessario(p, isAdmin);
+                    if (mpP != null && p.getFormaPagamento() != null && "BOLETO".equalsIgnoreCase(p.getFormaPagamento().getDescricao())) {
+                        emailService.enviarEmailBoletoGerado(p);
+                    }
+                });
         }
         return convertToResponseDTO(pedido);
     }
 
-    private void gerarPagamentoPixSeNecessario(Pagamento pagamento) {
+    private com.mercadopago.resources.payment.Payment gerarPagamentoOnlineSeNecessario(Pagamento pagamento, boolean adminOverride) {
         Pedido pedido = pagamento.getPedido();
         Usuario usuario = pedido.getUsuario();
         
-        // Se for PIX e estiver marcado para pagamento online, e o usuário estiver autorizado
+        // Se for pagamento online e o usuário estiver autorizado
         boolean podePagarOnline = usuario.getMetodoPagamentoAutorizado() == MetodoPagamentoAutorizado.ENTREGA_E_ONLINE ||
-                                 usuario.getMetodoPagamentoAutorizado() == MetodoPagamentoAutorizado.APENAS_ONLINE;
+                                 usuario.getMetodoPagamentoAutorizado() == MetodoPagamentoAutorizado.APENAS_ONLINE ||
+                                 adminOverride;
 
-        if (Boolean.TRUE.equals(pagamento.getPago())) {
-            return; // Não regera se já estiver pago
+        // Se o usuário for 'Apenas Online', o pagamento DEVE ser online por padrão
+        boolean isApenasOnline = usuario.getMetodoPagamentoAutorizado() == MetodoPagamentoAutorizado.APENAS_ONLINE;
+        boolean marcarComoOnline = Boolean.TRUE.equals(pagamento.getPagamentoOnline()) || isApenasOnline;
+
+        if (Boolean.TRUE.equals(pagamento.getPago()) || !marcarComoOnline || !podePagarOnline) {
+            return null;
         }
 
+        // Se o usuário era 'Apenas Entrega' e o admin forçou agora, notificamos
+        if (adminOverride && usuario.getMetodoPagamentoAutorizado() == MetodoPagamentoAutorizado.APENAS_NA_ENTREGA) {
+            emailService.enviarEmailPagamentoOnlineHabilitado(pedido);
+        }
 
-        if (Boolean.TRUE.equals(pagamento.getPagamentoOnline()) &&
-            pagamento.getFormaPagamento() != null && "PIX".equalsIgnoreCase(pagamento.getFormaPagamento().getDescricao())) {
-            
+        if (pagamento.getFormaPagamento() == null) {
+            return null;
+        }
 
-            // Para geração MANUAL (clique no botão), sempre geramos um novo se não estiver pago
-            try {
-                com.mercadopago.resources.payment.Payment mpPayment = mercadoPagoService.criarPagamentoPix(pagamento);
-                pagamento.setMercadopagoPagamentoId(mpPayment.getId().toString());
-                pagamento.setPago(false);
-                
-                if (mpPayment.getDateOfExpiration() != null) {
-                    pagamento.setDataExpiracaoPix(mpPayment.getDateOfExpiration());
-                }
-                
-                if (mpPayment.getPointOfInteraction() != null && 
-                    mpPayment.getPointOfInteraction().getTransactionData() != null) {
-                    pagamento.setPixCopiaECola(mpPayment.getPointOfInteraction().getTransactionData().getQrCode());
-                    pagamento.setPixQrCode(mpPayment.getPointOfInteraction().getTransactionData().getQrCodeBase64());
-                }
-                
-                pagamentoRepository.save(pagamento);
-            } catch (MPApiException apiException) {
-                String details = apiException.getApiResponse() != null ? apiException.getApiResponse().getContent() : "Sem detalhes";
-                System.err.println("ERRO API MERCADO PAGO (Parcela " + pagamento.getId() + "): " + details);
-                // Não lançamos RuntimeException aqui para não quebrar o 'update' do pedido inteiro
-                // O administrador poderá tentar gerar novamente pelo botão manual se desejar.
-            } catch (Exception e) {
-                System.err.println("Erro genérico ao criar pagamento Mercado Pago para parcela " + pagamento.getId() + ": " + e.getMessage());
-                // Mesma lógica de robustez
+        String formaDesc = pagamento.getFormaPagamento().getDescricao().toUpperCase();
+        
+        try {
+            if (formaDesc.contains("PIX")) {
+                return mercadoPagoService.criarPagamentoPix(pagamento);
+            } else if (formaDesc.contains("BOLETO")) {
+                return mercadoPagoService.criarPagamentoBoleto(pagamento);
             }
+        } catch (Exception e) {
+            System.err.println(">>> Erro ao gerar pagamento " + formaDesc + " para Pagamento #" + pagamento.getId() + ": " + e.getMessage());
         }
+        return null;
     }
-
     @Transactional
     public void salvarNotaFiscal(Long id, String numeroNotaFiscal, MultipartFile file, boolean notificar) throws IOException {
         Pedido pedido = getPedidoEntity(id);
@@ -691,7 +718,7 @@ public class PedidoService {
         }
     }
 
-    public void notificarCobrancaPix(Long id, Long pagamentoId) {
+    public void notificarCobrancaPagamento(Long id, Long pagamentoId) {
         Pedido pedido = getPedidoEntity(id);
         com.sara.api.model.Pagamento pagamento = pagamentoRepository.findById(pagamentoId)
                 .orElseThrow(() -> new EntityNotFoundException("Pagamento não encontrado"));
@@ -703,8 +730,12 @@ public class PedidoService {
         if (Boolean.TRUE.equals(pagamento.getPago())) {
             throw new IllegalStateException("Esta parcela já consta como paga");
         }
-        
-        emailService.enviarEmailCobrancaPix(pedido, pagamento);
+
+        if (pagamento.getFormaPagamento() != null && "BOLETO".equalsIgnoreCase(pagamento.getFormaPagamento().getDescricao())) {
+            emailService.enviarEmailCobrancaBoleto(pedido, pagamento);
+        } else {
+            emailService.enviarEmailCobrancaPix(pedido, pagamento);
+        }
     }
 
     public InputStreamResource downloadNotaFiscal(Long id) {
@@ -715,5 +746,18 @@ public class PedidoService {
         
         java.io.InputStream is = ociService.downloadFile(pedido.getNotaFiscalPath());
         return new InputStreamResource(is);
+    }
+
+    private void ajustarVencimentoBoleto(Pagamento p) {
+        if (p.getFormaPagamento() != null && "BOLETO".equalsIgnoreCase(p.getFormaPagamento().getDescricao())) {
+            LocalDate data = p.getDataVencimento();
+            if (data != null) {
+                if (data.getDayOfWeek() == DayOfWeek.SATURDAY) {
+                    p.setDataVencimento(data.plusDays(2));
+                } else if (data.getDayOfWeek() == DayOfWeek.SUNDAY) {
+                    p.setDataVencimento(data.plusDays(1));
+                }
+            }
+        }
     }
 }
