@@ -1,0 +1,1 @@
+ALTER TABLE login_log ADD COLUMN local VARCHAR(255);

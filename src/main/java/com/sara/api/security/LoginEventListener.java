@@ -14,6 +14,7 @@ import org.springframework.security.authentication.event.AuthenticationSuccessEv
 import org.springframework.stereotype.Component;
 import org.springframework.web.context.request.RequestContextHolder;
 import org.springframework.web.context.request.ServletRequestAttributes;
+import com.sara.api.service.GeoIpService;
 
 import java.time.LocalDateTime;
 
@@ -24,6 +25,7 @@ public class LoginEventListener {
 
     private final LoginLogRepository loginLogRepository;
     private final UsuarioRepository usuarioRepository;
+    private final GeoIpService geoIpService;
 
     @EventListener
     public void onSuccess(AuthenticationSuccessEvent event) {
@@ -43,10 +45,26 @@ public class LoginEventListener {
 
     private void saveLog(Usuario usuario, LoginStatus status) {
         String userAgent = "Unknown";
+        String ip = "Unknown";
+        String local = "Local Indisponível";
+        
         ServletRequestAttributes attributes = (ServletRequestAttributes) RequestContextHolder.getRequestAttributes();
         if (attributes != null) {
             HttpServletRequest request = attributes.getRequest();
             userAgent = request.getHeader("User-Agent");
+            
+            // Tenta obter o IP real se estiver atrás de um proxy (como Nginx/Cloudflare)
+            ip = request.getHeader("X-Forwarded-For");
+            if (ip == null || ip.isEmpty() || "unknown".equalsIgnoreCase(ip)) {
+                ip = request.getRemoteAddr();
+            }
+            
+            // Em caso de múltiplos IPs no X-Forwarded-For, pega o primeiro
+            if (ip != null && ip.contains(",")) {
+                ip = ip.split(",")[0].trim();
+            }
+
+            local = geoIpService.obterLocalizacao(ip);
         }
 
         LoginLog logEntry = LoginLog.builder()
@@ -54,6 +72,7 @@ public class LoginEventListener {
                 .dataHora(LocalDateTime.now())
                 .userAgent(userAgent)
                 .status(status)
+                .local(local)
                 .build();
 
         loginLogRepository.save(logEntry);

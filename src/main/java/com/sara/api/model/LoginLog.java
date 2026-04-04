@@ -32,4 +32,7 @@ public class LoginLog {
     @Enumerated(EnumType.STRING)
     @Column(nullable = false, length = 20)
     private LoginStatus status;
+
+    @Column(length = 255)
+    private String local;
 }

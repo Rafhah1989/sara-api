@@ -16,4 +16,5 @@ public class LoginLogResponseDTO {
     private LocalDateTime dataHora;
     private String userAgent;
     private LoginStatus status;
+    private String local;
 }

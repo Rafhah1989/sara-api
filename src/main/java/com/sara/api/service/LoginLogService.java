@@ -69,6 +69,7 @@ public class LoginLogService {
                 .dataHora(log.getDataHora())
                 .userAgent(log.getUserAgent())
                 .status(log.getStatus())
+                .local(log.getLocal())
                 .build();
     }
 }

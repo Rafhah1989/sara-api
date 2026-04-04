@@ -17,6 +17,7 @@ import com.mercadopago.exceptions.MPApiException;
 import com.mercadopago.exceptions.MPException;
 import com.mercadopago.resources.payment.Payment;
 import com.mercadopago.client.payment.PaymentPayerAddressRequest;
+import com.mercadopago.core.MPRequestOptions;
 import com.sara.api.model.ConfiguracaoBoleto;
 import com.sara.api.model.Pagamento;
 import java.math.BigDecimal;
@@ -27,6 +28,7 @@ import com.sara.api.repository.PedidoRepository;
 import jakarta.annotation.PostConstruct;
 
 import java.time.OffsetDateTime;
+import java.time.temporal.ChronoUnit;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Lazy;
@@ -36,8 +38,10 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.UUID;
 
 @Service
 public class MercadoPagoService {
@@ -354,6 +358,20 @@ public class MercadoPagoService {
         Pedido pedido = pagamento.getPedido();
         Usuario user = pedido.getUsuario();
         
+        // 0. Se já existir um pagamento, tenta cancelar no Mercado Pago antes de regenerar
+        if (pagamento.getMercadopagoPagamentoId() != null && !pagamento.getMercadopagoPagamentoId().isEmpty()) {
+            try {
+                // Tenta cancelar o anterior. Se falhar (ex: já expirado no MP), apenas ignora e segue para criacão do novo.
+                cancelarPagamento(pagamento.getMercadopagoPagamentoId());
+            } catch (Exception e) {
+                System.err.println("Aviso: Falha ao cancelar PIX anterior #" + pagamento.getMercadopagoPagamentoId() + ": " + e.getMessage());
+            }
+            // Limpa dados de integração antigos para que os novos campos sejam preenchidos
+            pagamento.setPixCopiaECola(null);
+            pagamento.setPixQrCode(null);
+            pagamento.setMercadopagoPagamentoId(null);
+        }
+
         PaymentClient client = new PaymentClient();
 
         PaymentCreateRequest.PaymentCreateRequestBuilder builder = PaymentCreateRequest.builder()
@@ -365,8 +383,7 @@ public class MercadoPagoService {
 
         String email = user.getEmail();
         if (email == null || email.isBlank() || !email.contains("@")) {
-            // Mercado Pago exige um e-mail válido. Se o usuário não tiver, usamos um fallback corporativo ou do sistema
-            email = "financeiro@sarasystem.com.br"; // Exemplo de fallback
+            email = "financeiro@sarasystem.com.br";
         }
 
         String nome = user.getNome();
@@ -389,28 +406,40 @@ public class MercadoPagoService {
         }
 
         PaymentCreateRequest request = builder.payer(payerBuilder.build()).build();
-        Payment payment = client.create(request);
 
-        if (payment != null) {
-            // Extração de dados PIX (Point of Interaction)
-            if (payment.getPointOfInteraction() != null && payment.getPointOfInteraction().getTransactionData() != null) {
-                var data = payment.getPointOfInteraction().getTransactionData();
-                pagamento.setPixCopiaECola(data.getQrCode());
-                pagamento.setPixQrCode(data.getQrCodeBase64());
+        try {
+            // Voltando para a chamada sem requestOptions (Idempotency Key) para isolar problema
+            Payment payment = client.create(request);
+
+            if (payment != null) {
+                // Extração de dados PIX (Point of Interaction)
+                if (payment.getPointOfInteraction() != null && payment.getPointOfInteraction().getTransactionData() != null) {
+                    var data = payment.getPointOfInteraction().getTransactionData();
+                    pagamento.setPixCopiaECola(data.getQrCode());
+                    pagamento.setPixQrCode(data.getQrCodeBase64());
+                }
+
+                pagamento.setMercadopagoPagamentoId(String.valueOf(payment.getId()));
+                pagamento.setPagamentoOnline(true);
+                pagamento.setPago(false);
+                if (payment.getDateOfExpiration() != null) {
+                    pagamento.setDataExpiracao(payment.getDateOfExpiration());
+                }
+
+                pagamentoRepository.save(pagamento);
+                System.out.println("SUCESSO: PIX gerado para Pagamento #" + pagamento.getId() + " - ID MP: " + payment.getId());
+                return payment;
             }
-
-            pagamento.setMercadopagoPagamentoId(String.valueOf(payment.getId()));
-            pagamento.setPagamentoOnline(true);
-            pagamento.setPago(false);
-            if (payment.getDateOfExpiration() != null) {
-                pagamento.setDataExpiracao(payment.getDateOfExpiration());
-            }
-
-            pagamentoRepository.save(pagamento);
-            System.out.println("SUCESSO: PIX gerado para Pagamento #" + pagamento.getId() + " - ID MP: " + payment.getId());
+        } catch (MPApiException e) {
+            System.err.println(">>> ERRO API MERCADO PAGO - Status: " + e.getApiResponse().getStatusCode());
+            System.err.println(">>> CORPO DO ERRO: " + e.getApiResponse().getContent());
+            throw new MPException("Erro na API Mercado Pago: " + e.getApiResponse().getContent());
+        } catch (Exception e) {
+            System.err.println(">>> ERRO GENÉRICO AO CRIAR PIX: " + e.getMessage());
+            throw e;
         }
 
-        return payment;
+        return null;
     }
 
     public Payment buscarPagamento(String paymentId) throws MPException, MPApiException {
