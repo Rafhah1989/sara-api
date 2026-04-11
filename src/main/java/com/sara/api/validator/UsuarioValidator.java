@@ -49,8 +49,8 @@ public class UsuarioValidator {
     }
 
     private void validarTelefone(String telefone) {
-        if (telefone == null || !telefone.matches("\\(\\d{2}\\) \\d{5}-\\d{4}")) {
-            throw new ValidationException("O telefone deve estar no formato (xx) xxxxx-xxxx");
+        if (telefone == null || !telefone.matches("\\(\\d{2}\\) \\d{4,5}-\\d{4}")) {
+            throw new ValidationException("O telefone deve estar no formato (xx) xxxx-xxxx ou (xx) xxxxx-xxxx");
         }
     }
 

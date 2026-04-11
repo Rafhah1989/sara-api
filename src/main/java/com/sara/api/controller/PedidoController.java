@@ -41,6 +41,7 @@ public class PedidoController {
     @Operation(summary = "Listar pedidos com filtros e paginação", description = "Retorna uma página de pedidos filtrada por cliente, ID ou período")
     public ResponseEntity<Page<PedidoListResponseDTO>> listar(
             @RequestParam(value = "id", required = false) Long id,
+            @RequestParam(value = "usuarioId", required = false) Long usuarioId,
             @RequestParam(value = "clienteNome", required = false) String clienteNome,
             @RequestParam(value = "dataInicio", required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) LocalDateTime dataInicio,
             @RequestParam(value = "dataFim", required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) LocalDateTime dataFim,
@@ -49,7 +50,7 @@ public class PedidoController {
             Pageable pageable) {
 
         return ResponseEntity
-                .ok(pedidoService.findAll(id, clienteNome, dataInicio, dataFim, situacao, exibirCancelados, pageable));
+                .ok(pedidoService.findAll(id, usuarioId, clienteNome, dataInicio, dataFim, situacao, exibirCancelados, pageable));
     }
 
     @GetMapping("/usuario/{usuarioId}")

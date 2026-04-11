@@ -196,6 +196,13 @@ public class UsuarioService {
                 .collect(Collectors.toList());
     }
 
+    public List<UsuarioResponseDTO> buscarPorTelefone(String telefone) {
+        String cleanedTelefone = telefone.replaceAll("\\D", "");
+        return usuarioRepository.findByTelefoneContaining(cleanedTelefone).stream()
+                .map(this::toDTO)
+                .collect(Collectors.toList());
+    }
+
     public Optional<UsuarioResponseDTO> buscarPorId(Long id) {
         return usuarioRepository.findById(id).map(this::toDTO);
     }

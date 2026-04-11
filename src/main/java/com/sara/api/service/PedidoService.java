@@ -119,17 +119,19 @@ public class PedidoService {
     @Transactional(readOnly = true)
     public Page<PedidoListResponseDTO> findAll(
             Long id,
+            Long usuarioId,
             String clienteNome,
             LocalDateTime dataInicio,
             LocalDateTime dataFim,
             SituacaoPedido situacao,
             Pageable pageable) {
-        return findAll(id, clienteNome, dataInicio, dataFim, situacao, false, pageable);
+        return findAll(id, usuarioId, clienteNome, dataInicio, dataFim, situacao, false, pageable);
     }
 
     @Transactional(readOnly = true)
     public Page<PedidoListResponseDTO> findAll(
             Long id,
+            Long usuarioId,
             String clienteNome,
             LocalDateTime dataInicio,
             LocalDateTime dataFim,
@@ -158,6 +160,9 @@ public class PedidoService {
 
             if (id != null) {
                 predicates.add(cb.equal(root.get("id"), id));
+            }
+            if (usuarioId != null) {
+                predicates.add(cb.equal(root.get("usuario").get("id"), usuarioId));
             }
             if (clienteNome != null && !clienteNome.isEmpty()) {
                 predicates

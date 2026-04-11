@@ -29,11 +29,7 @@ public class UsuarioController {
     @Operation(summary = "Alterar usuário", description = "Atualiza os dados de um usuário existente por ID")
     public ResponseEntity<UsuarioResponseDTO> alterar(@PathVariable("id") Long id,
             @RequestBody UsuarioRequestDTO request) {
-        try {
-            return ResponseEntity.ok(usuarioService.alterar(id, request));
-        } catch (RuntimeException e) {
-            return ResponseEntity.notFound().build();
-        }
+        return ResponseEntity.ok(usuarioService.alterar(id, request));
     }
 
     @DeleteMapping("/{id}")
@@ -66,6 +62,11 @@ public class UsuarioController {
     @GetMapping("/nome/{nome}")
     public List<UsuarioResponseDTO> buscarPorNome(@PathVariable("nome") String nome) {
         return usuarioService.buscarPorNome(nome);
+    }
+
+    @GetMapping("/telefone/{telefone}")
+    public List<UsuarioResponseDTO> buscarPorTelefone(@PathVariable("telefone") String telefone) {
+        return usuarioService.buscarPorTelefone(telefone);
     }
 
     @PostMapping("/reenviar-convite/{id}")
