@@ -12,6 +12,7 @@ import com.sara.api.repository.ProdutoRepository;
 import com.sara.api.repository.UsuarioRepository;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
+import org.springframework.data.repository.query.Param;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
@@ -29,6 +30,7 @@ public class CarrinhoService {
     @Autowired
     private ProdutoRepository produtoRepository;
 
+    @Transactional
     public CarrinhoResponseDTO adicionar(CarrinhoRequestDTO dto) {
         CarrinhoId id = new CarrinhoId(dto.getUsuarioId(), dto.getProdutoId());
         
@@ -82,6 +84,7 @@ public class CarrinhoService {
         }).collect(Collectors.toList());
     }
 
+    @Transactional
     public void remover(Long usuarioId, Long produtoId) {
         CarrinhoId id = new CarrinhoId(usuarioId, produtoId);
         if (!carrinhoRepository.existsById(id)) {
@@ -90,10 +93,12 @@ public class CarrinhoService {
         carrinhoRepository.deleteById(id);
     }
 
+    @Transactional
     public void limparCarrinhoUsuario(Long usuarioId) {
         carrinhoRepository.deleteByUsuarioId(usuarioId);
     }
 
+    @Transactional
     public CarrinhoResponseDTO atualizarQuantidade(Long usuarioId, Long produtoId, Integer quantidade) {
         CarrinhoId id = new CarrinhoId(usuarioId, produtoId);
         Carrinho carrinho = carrinhoRepository.findById(id)

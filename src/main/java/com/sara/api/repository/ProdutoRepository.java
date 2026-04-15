@@ -11,10 +11,12 @@ import java.util.List;
 public interface ProdutoRepository extends JpaRepository<Produto, Long>, JpaSpecificationExecutor<Produto> {
     @org.springframework.data.jpa.repository.Query("SELECT new com.sara.api.dto.ProdutoMiniDTO(p.id, p.nome, p.tamanho, p.ativo, p.codigo, p.preco, p.peso, " +
             "CASE WHEN (p.imagem IS NOT NULL AND p.imagem <> '') THEN true ELSE false END) " +
-            "FROM Produto p WHERE LOWER(p.nome) LIKE LOWER(CONCAT('%', :nome, '%')) AND p.ativo = true")
+            "FROM Produto p WHERE CAST(function('unaccent', LOWER(p.nome)) AS String) LIKE CAST(function('unaccent', LOWER(CONCAT('%', :nome, '%'))) AS String) AND p.ativo = true")
     List<com.sara.api.dto.ProdutoMiniDTO> findByNomeMini(@org.springframework.data.repository.query.Param("nome") String nome);
 
-    List<Produto> findByNomeContainingIgnoreCaseAndAtivoTrue(String nome);
+    @org.springframework.data.jpa.repository.Query("FROM Produto p WHERE CAST(function('unaccent', LOWER(p.nome)) AS String) LIKE CAST(function('unaccent', LOWER(CONCAT('%', :nome, '%'))) AS String)")
+    List<Produto> findByNomeAccentInsensitive(@org.springframework.data.repository.query.Param("nome") String nome);
+
     List<Produto> findByNomeContainingIgnoreCase(String nome);
 
     List<Produto> findByNomeAndAtivoTrueAndIdNot(String nome, Long id);

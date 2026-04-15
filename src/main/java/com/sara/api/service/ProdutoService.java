@@ -104,7 +104,7 @@ public class ProdutoService {
     }
 
     public List<Produto> buscarPorNome(String nome) {
-        return produtoRepository.findByNomeContainingIgnoreCase(nome);
+        return produtoRepository.findByNomeAccentInsensitive(nome);
     }
 
     public List<Produto> listarAtivos() {
@@ -178,7 +178,13 @@ public class ProdutoService {
 
             if (nome != null && !nome.trim().isEmpty()) {
                 String termLower = nome.toLowerCase();
-                Predicate matchNome = cb.like(cb.lower(root.get("nome")), "%" + termLower + "%");
+                String unaccentedTerm = "%" + termLower + "%";
+                
+                Predicate matchNome = cb.like(
+                    cb.function("unaccent", String.class, cb.lower(root.get("nome"))), 
+                    cb.function("unaccent", String.class, cb.literal(unaccentedTerm))
+                );
+                
                 Predicate matchCodigo = cb.like(cb.lower(root.get("codigo")), "%" + termLower + "%");
                 predicates.add(cb.or(matchNome, matchCodigo));
 
