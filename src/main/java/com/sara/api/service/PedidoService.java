@@ -118,7 +118,7 @@ public class PedidoService {
 
     @Transactional(readOnly = true)
     public Page<PedidoListResponseDTO> findAll(
-            Long id,
+            String id,
             Long usuarioId,
             String clienteNome,
             LocalDateTime dataInicio,
@@ -130,7 +130,7 @@ public class PedidoService {
 
     @Transactional(readOnly = true)
     public Page<PedidoListResponseDTO> findAll(
-            Long id,
+            String id,
             Long usuarioId,
             String clienteNome,
             LocalDateTime dataInicio,
@@ -158,8 +158,19 @@ public class PedidoService {
                 }
             }
 
-            if (id != null) {
-                predicates.add(cb.equal(root.get("id"), id));
+            if (id != null && !id.trim().isEmpty()) {
+                String idStr = id.trim();
+                List<Predicate> idPredicates = new ArrayList<>();
+                idPredicates.add(cb.like(root.get("numero"), "%" + idStr + "%"));
+                
+                try {
+                    Long longId = Long.parseLong(idStr);
+                    idPredicates.add(cb.equal(root.get("id"), longId));
+                } catch (NumberFormatException e) {
+                    // Apenas por numero
+                }
+                
+                predicates.add(cb.or(idPredicates.toArray(new Predicate[0])));
             }
             if (usuarioId != null) {
                 predicates.add(cb.equal(root.get("usuario").get("id"), usuarioId));
@@ -197,6 +208,7 @@ public class PedidoService {
 
         Pedido pedido = new Pedido();
         pedido.setUsuario(usuario);
+        pedido.setNumero(gerarNovoNumero(usuario));
         updatePedidoFromDTO(pedido, request);
         pedido.setSituacao(SituacaoPedido.PENDENTE);
 
@@ -262,7 +274,10 @@ public class PedidoService {
         // Dispara e-mail assíncrono para o novo pedido
         emailService.enviarEmailNovoPedido(savedCompleto);
         
-        return convertToResponseDTO(savedCompleto);
+        PedidoResponseDTO response = convertToResponseDTO(savedCompleto);
+        // Garante que o número seja enviado, priorizando o valor da entidade persistida
+        response.setNumero(saved.getNumero());
+        return response;
     }
 
     @Transactional
@@ -387,7 +402,6 @@ public class PedidoService {
                 }
             }
         }
-        
         syncStatusPedido(pedido);
         pedidoRepository.save(pedido);
         
@@ -476,6 +490,7 @@ public class PedidoService {
     private PedidoListResponseDTO convertToSummaryDTO(Pedido pedido) {
         PedidoListResponseDTO response = new PedidoListResponseDTO();
         response.setId(pedido.getId());
+        response.setNumero(pedido.getNumero());
         response.setUsuarioId(pedido.getUsuario().getId());
         response.setUsuarioNome(pedido.getUsuario().getNome());
         response.setValorTotal(pedido.getValorTotal());
@@ -523,6 +538,7 @@ public class PedidoService {
     private PedidoResponseDTO convertToResponseDTO(Pedido pedido) {
         PedidoResponseDTO response = new PedidoResponseDTO();
         response.setId(pedido.getId());
+        response.setNumero(pedido.getNumero());
         response.setUsuarioId(pedido.getUsuario().getId());
         response.setUsuarioNome(pedido.getUsuario().getNome());
         response.setDesconto(pedido.getDesconto());
@@ -593,6 +609,7 @@ public class PedidoService {
             itemDTO.setDesconto(item.getDesconto());
             itemDTO.setPeso(item.getPeso() != null ? item.getPeso().doubleValue() : 0.0);
             itemDTO.setTemImagem(Boolean.TRUE.equals(item.getProduto().getTemImagem()));
+            itemDTO.setImagem(item.getProduto().getImagem());
             itemDTO.setTamanho(item.getProduto().getTamanho());
             return itemDTO;
         }).collect(Collectors.toList()));
@@ -653,9 +670,12 @@ public class PedidoService {
                                  usuario.getMetodoPagamentoAutorizado() == MetodoPagamentoAutorizado.APENAS_ONLINE ||
                                  adminOverride;
 
-        // Se o usuário for 'Apenas Online', o pagamento DEVE ser online por padrão
+        String formaDesc = pagamento.getFormaPagamento() != null ? pagamento.getFormaPagamento().getDescricao().toUpperCase() : "";
+        boolean isMetodoOnline = formaDesc.contains("PIX") || formaDesc.contains("BOLETO");
+
+        // Se o usuário for 'Apenas Online', o pagamento DEVE ser online por padrão, desde que o método suporte
         boolean isApenasOnline = usuario.getMetodoPagamentoAutorizado() == MetodoPagamentoAutorizado.APENAS_ONLINE;
-        boolean marcarComoOnline = Boolean.TRUE.equals(pagamento.getPagamentoOnline()) || isApenasOnline;
+        boolean marcarComoOnline = (Boolean.TRUE.equals(pagamento.getPagamentoOnline()) || isApenasOnline) && isMetodoOnline;
 
         if (Boolean.TRUE.equals(pagamento.getPago()) || !marcarComoOnline || !podePagarOnline) {
             return null;
@@ -669,8 +689,6 @@ public class PedidoService {
         if (pagamento.getFormaPagamento() == null) {
             return null;
         }
-
-        String formaDesc = pagamento.getFormaPagamento().getDescricao().toUpperCase();
         
         try {
             if (formaDesc.contains("PIX")) {
@@ -764,5 +782,52 @@ public class PedidoService {
                 }
             }
         }
+    }
+
+    private String gerarNovoNumero(Usuario usuario) {
+        String codigoCliente = usuario.getCodigo();
+        if (codigoCliente == null || codigoCliente.length() < 4) {
+            codigoCliente = String.format("%04d", Integer.parseInt(codigoCliente != null ? codigoCliente : "0"));
+        } else if (codigoCliente.length() > 4) {
+            codigoCliente = codigoCliente.substring(codigoCliente.length() - 4);
+        }
+
+        List<String> numeros = pedidoRepository.findNumerosByUsuario(usuario.getId());
+        long maxSequencialNovoFormato = 0;
+
+        for (String num : numeros) {
+            if (num != null && num.length() >= 7) {
+                try {
+                    long seq = Long.parseLong(num.substring(4));
+                    if (seq > maxSequencialNovoFormato) {
+                        maxSequencialNovoFormato = seq;
+                    }
+                } catch (NumberFormatException ignored) {}
+            }
+        }
+
+        long maxSequencial;
+        if (maxSequencialNovoFormato > 0) {
+            // Se já existem pedidos no formato novo, segue a sequência deles
+            maxSequencial = maxSequencialNovoFormato;
+        } else {
+            // Se é a primeira vez no formato novo, continua a partir do último ID (formato antigo)
+            Long maxId = pedidoRepository.findMaxIdByUsuario(usuario.getId());
+            maxSequencial = maxId != null ? maxId : 0;
+        }
+
+        long proximoSequencial = maxSequencial + 1;
+        String novoNumero;
+        
+        do {
+            if (proximoSequencial <= 999) {
+                novoNumero = String.format("%s%03d", codigoCliente, proximoSequencial);
+            } else {
+                novoNumero = String.format("%s%d", codigoCliente, proximoSequencial);
+            }
+            proximoSequencial++;
+        } while (pedidoRepository.findByNumero(novoNumero).isPresent());
+
+        return novoNumero;
     }
 }

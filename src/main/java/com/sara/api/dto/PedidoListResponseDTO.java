@@ -11,6 +11,7 @@ import java.time.LocalDateTime;
 @Schema(description = "DTO simplificado para listagem de pedidos")
 public class PedidoListResponseDTO {
     private Long id;
+    private String numero;
     private Long usuarioId;
     private String usuarioNome;
     private BigDecimal valorTotal;

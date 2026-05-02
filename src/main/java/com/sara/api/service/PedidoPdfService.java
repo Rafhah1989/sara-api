@@ -93,7 +93,7 @@ public class PedidoPdfService {
     }
 
     private void addOrderInfo(Document document, Pedido pedido) {
-        Paragraph p = new Paragraph("PEDIDO #" + pedido.getId(), headerFont);
+        Paragraph p = new Paragraph("PEDIDO #" + pedido.getNumero(), headerFont);
         p.setAlignment(Element.ALIGN_CENTER);
         document.add(p);
 

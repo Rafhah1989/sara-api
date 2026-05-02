@@ -19,6 +19,14 @@ public class UsuarioController {
     @Autowired
     private UsuarioService usuarioService;
 
+    @GetMapping("/verificar-codigo")
+    @Operation(summary = "Verificar disponibilidade de código", description = "Verifica se um código de usuário já está sendo utilizado")
+    public ResponseEntity<Boolean> verificarCodigo(@RequestParam("codigo") String codigo, 
+                                                  @RequestParam(value = "id", required = false) Long id) {
+        boolean disponivel = usuarioService.verificarCodigoDisponivel(codigo, id);
+        return ResponseEntity.ok(disponivel);
+    }
+
     @PostMapping
     @Operation(summary = "Criar novo usuário", description = "Cadastra um novo usuário no sistema com senha criptografada")
     public UsuarioResponseDTO criar(@RequestBody UsuarioRequestDTO request) {

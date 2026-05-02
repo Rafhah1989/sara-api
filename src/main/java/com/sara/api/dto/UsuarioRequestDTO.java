@@ -10,6 +10,9 @@ public class UsuarioRequestDTO {
     @Schema(description = "Nome completo do usuário", example = "João da Silva")
     private String nome;
 
+    @Schema(description = "Código de identificação do usuário", example = "1101")
+    private String codigo;
+
     @Schema(description = "CEP do endereço (apenas números)", example = "01001000")
     private String cep;
 

@@ -33,6 +33,10 @@ public class Usuario implements UserDetails {
     @ToString.Include
     private String nome;
 
+    @Column(nullable = false, unique = true, length = 4)
+    @ToString.Include
+    private String codigo;
+
     @Column(nullable = false, length = 8)
     private String cep;
 

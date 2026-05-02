@@ -35,6 +35,9 @@ public class PedidoProdutoResponseDTO {
     @Schema(description = "Indica se o produto possui imagem")
     private Boolean temImagem;
 
+    @Schema(description = "URL ou caminho da imagem do produto", example = "produto.jpg")
+    private String imagem;
+
     @Schema(description = "Tamanho do produto", example = "30")
     private Integer tamanho;
 }

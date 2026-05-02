@@ -25,6 +25,10 @@ public class Pedido {
     @ToString.Include
     private Long id;
 
+    @Column(nullable = false, unique = true, length = 7, updatable = false)
+    @ToString.Include
+    private String numero;
+
     @ManyToOne
     @JoinColumn(name = "usuario_id", nullable = false)
     private Usuario usuario;

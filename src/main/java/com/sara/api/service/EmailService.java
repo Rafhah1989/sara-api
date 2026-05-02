@@ -29,7 +29,7 @@ public class EmailService {
     @Async
     @Retryable(value = Exception.class, maxAttempts = 3, backoff = @Backoff(delay = 5000))
     public void enviarEmailNovoPedido(Pedido pedido) {
-        log.info("Iniciando tentativa de envio de e-mail para o pedido #{}", pedido.getId());
+        log.info("Iniciando tentativa de envio de e-mail para o pedido #{}", pedido.getNumero());
 
         Configuracao config = configuracaoRepository.findAll().stream().findFirst().orElse(null);
         if (config == null || !Boolean.TRUE.equals(config.getEmailAtivo())) {
@@ -54,7 +54,7 @@ public class EmailService {
             MimeMessage message = mailSender.createMimeMessage();
             MimeMessageHelper helper = new MimeMessageHelper(message, true, "UTF-8");
 
-            String subject = String.format("Pedido %d criado - %s", pedido.getId(), pedido.getUsuario().getNome());
+            String subject = String.format("Pedido %s criado - %s", pedido.getNumero(), pedido.getUsuario().getNome());
             helper.setSubject(subject);
             helper.setFrom(config.getMailUsername());
             helper.setTo(config.getEmailsNotificacao().split(","));
@@ -63,10 +63,10 @@ public class EmailService {
             helper.setText(content, true);
 
             mailSender.send(message);
-            log.info("E-mail enviado com sucesso para o pedido #{}", pedido.getId());
+            log.info("E-mail enviado com sucesso para o pedido #{}", pedido.getNumero());
 
         } catch (Exception e) {
-            log.error("Erro ao enviar e-mail para o pedido #{}: {}", pedido.getId(), e.getMessage());
+            log.error("Erro ao enviar e-mail para o pedido #{}: {}", pedido.getNumero(), e.getMessage());
             throw new RuntimeException("Falha no envio de e-mail", e);
         }
     }
@@ -99,7 +99,7 @@ public class EmailService {
             MimeMessage message = mailSender.createMimeMessage();
             MimeMessageHelper helper = new MimeMessageHelper(message, true, "UTF-8");
 
-            String subject = String.format("Pedido %d cancelado - %s", pedido.getId(), pedido.getUsuario().getNome());
+            String subject = String.format("Pedido %s cancelado - %s", pedido.getNumero(), pedido.getUsuario().getNome());
             helper.setSubject(subject);
             helper.setFrom(config.getMailUsername());
             helper.setTo(config.getEmailsNotificacao().split(","));
@@ -144,7 +144,7 @@ public class EmailService {
             MimeMessage message = mailSender.createMimeMessage();
             MimeMessageHelper helper = new MimeMessageHelper(message, true, "UTF-8");
 
-            String subject = String.format("Pedido %d confirmado - %s", pedido.getId(), pedido.getUsuario().getNome());
+            String subject = String.format("Pedido %s confirmado - %s", pedido.getNumero(), pedido.getUsuario().getNome());
             helper.setSubject(subject);
             helper.setFrom(config.getMailUsername());
             helper.setTo(pedido.getUsuario().getEmail());
@@ -189,7 +189,7 @@ public class EmailService {
             MimeMessage message = mailSender.createMimeMessage();
             MimeMessageHelper helper = new MimeMessageHelper(message, true, "UTF-8");
 
-            String subject = String.format("Pedido %d atualizado - %s", pedido.getId(), pedido.getUsuario().getNome());
+            String subject = String.format("Pedido %s atualizado - %s", pedido.getNumero(), pedido.getUsuario().getNome());
             helper.setSubject(subject);
             helper.setFrom(config.getMailUsername());
             
@@ -237,7 +237,7 @@ public class EmailService {
             MimeMessage message = mailSender.createMimeMessage();
             MimeMessageHelper helper = new MimeMessageHelper(message, true, "UTF-8");
 
-            String subject = String.format("Nota Fiscal disponível - Pedido #%d", pedido.getId());
+            String subject = String.format("Nota Fiscal disponível - Pedido #%s", pedido.getNumero());
             helper.setSubject(subject);
             helper.setFrom(config.getMailUsername());
             helper.setTo(pedido.getUsuario().getEmail());
@@ -246,7 +246,7 @@ public class EmailService {
             sb.append("<div style='font-family: Arial, sans-serif; color: #333; line-height: 1.6;'>");
             sb.append("<h1 style='color: #6f42c1;'>Sua Nota Fiscal está disponível!</h1>");
             sb.append("<p>Olá, <strong>").append(pedido.getUsuario().getNome()).append("</strong>.</p>");
-            sb.append("<p>Informamos que a Nota Fiscal referente ao seu pedido <strong>#").append(pedido.getId())
+            sb.append("<p>Informamos que a Nota Fiscal referente ao seu pedido <strong>#").append(pedido.getNumero())
                     .append("</strong> já foi emitida e está disponível para consulta.</p>");
             
             if (pedido.getNumeroNotaFiscal() != null) {
@@ -292,7 +292,7 @@ public class EmailService {
             MimeMessage message = mailSender.createMimeMessage();
             MimeMessageHelper helper = new MimeMessageHelper(message, true, "UTF-8");
 
-            String subject = String.format("Aguardando Pagamento - Pedido #%d - Parcela PIX", pedido.getId());
+            String subject = String.format("Aguardando Pagamento - Pedido #%s - Parcela PIX", pedido.getNumero());
             helper.setSubject(subject);
             helper.setFrom(config.getMailUsername());
             helper.setTo(pedido.getUsuario().getEmail());
@@ -301,14 +301,14 @@ public class EmailService {
             sb.append("<div style='font-family: Arial, sans-serif; color: #333; line-height: 1.6;'>");
             sb.append("<h1 style='color: #d4af37;'>Seu código PIX está disponível!</h1>");
             sb.append("<p>Olá, <strong>").append(pedido.getUsuario().getNome()).append("</strong>.</p>");
-            sb.append("<p>Informamos que o seu pedido <strong>#").append(pedido.getId())
+            sb.append("<p>Informamos que o seu pedido <strong>#").append(pedido.getNumero())
                     .append("</strong> possui uma parcela PIX aguardando pagamento.</p>");
             
             sb.append("<div style='background: #fdf8e6; border: 1px solid #d4af37; padding: 15px; border-radius: 8px; margin: 20px 0;'>");
             sb.append("<p style='margin: 0;'><strong>Valor da Parcela:</strong> R$ ").append(String.format("%.2f", pagamento.getValor().doubleValue()).replace(".", ",")).append("</p>");
             sb.append("</div>");
 
-            sb.append("<p>Para realizar o pagamento, por favor <strong>acesse o sistema</strong>, vá em 'Meus Pedidos', localize o pedido #").append(pedido.getId())
+            sb.append("<p>Para realizar o pagamento, por favor <strong>acesse o sistema</strong>, vá em 'Meus Pedidos', localize o pedido #").append(pedido.getNumero())
                     .append(" e clique no botão com o ícone de <strong>QR Code (Ver PIX)</strong> para visualizar o código de pagamento atualizado.</p>");
             sb.append("<br/>");
             sb.append("<p>Atenciosamente,</p>");
@@ -317,7 +317,7 @@ public class EmailService {
 
             helper.setText(sb.toString(), true);
             mailSender.send(message);
-            log.info("E-mail de cobrança enviado para o cliente do pedido #{}", pedido.getId());
+            log.info("E-mail de cobrança enviado para o cliente do pedido #{}", pedido.getNumero());
 
         } catch (Exception e) {
             log.error("Erro ao enviar e-mail de cobrança para o pedido #{}: {}", pedido.getId(), e.getMessage());
@@ -327,7 +327,7 @@ public class EmailService {
     @Async
     @Retryable(value = Exception.class, maxAttempts = 3, backoff = @Backoff(delay = 5000))
     public void enviarEmailCobrancaBoleto(Pedido pedido, com.sara.api.model.Pagamento pagamento) {
-        log.info("Iniciando envio de e-mail de cobrança Boleto para o pedido #{}", pedido.getId());
+        log.info("Iniciando envio de e-mail de cobrança Boleto para o pedido #{}", pedido.getNumero());
 
         Configuracao config = configuracaoRepository.findAll().stream().findFirst().orElse(null);
         if (config == null || !Boolean.TRUE.equals(config.getEmailAtivo())) {
@@ -340,7 +340,7 @@ public class EmailService {
             MimeMessage message = mailSender.createMimeMessage();
             MimeMessageHelper helper = new MimeMessageHelper(message, true, "UTF-8");
 
-            String subject = String.format("Aguardando Pagamento - Pedido #%d - Parcela Boleto", pedido.getId());
+            String subject = String.format("Aguardando Pagamento - Pedido #%s - Parcela Boleto", pedido.getNumero());
             helper.setSubject(subject);
             helper.setFrom(config.getMailUsername());
             helper.setTo(pedido.getUsuario().getEmail());
@@ -349,7 +349,7 @@ public class EmailService {
             sb.append("<div style='font-family: Arial, sans-serif; color: #333; line-height: 1.6;'>");
             sb.append("<h1 style='color: #004085;'>Seu boleto está com o pagamento pendente!</h1>");
             sb.append("<p>Olá, <strong>").append(pedido.getUsuario().getNome()).append("</strong>.</p>");
-            sb.append("<p>Lembramos que o seu pedido <strong>#").append(pedido.getId())
+            sb.append("<p>Lembramos que o seu pedido <strong>#").append(pedido.getNumero())
                     .append("</strong> possui uma parcela em Boleto aguardando pagamento.</p>");
             
             sb.append("<div style='background: #f8f9fa; border: 1px solid #dee2e6; padding: 15px; border-radius: 8px; margin: 20px 0;'>");
@@ -373,10 +373,10 @@ public class EmailService {
 
             helper.setText(sb.toString(), true);
             mailSender.send(message);
-            log.info("E-mail de cobrança de boleto enviado para o cliente do pedido #{}", pedido.getId());
+            log.info("E-mail de cobrança de boleto enviado para o cliente do pedido #{}", pedido.getNumero());
 
         } catch (Exception e) {
-            log.error("Erro ao enviar e-mail de cobrança de boleto para o pedido #{}: {}", pedido.getId(), e.getMessage());
+            log.error("Erro ao enviar e-mail de cobrança de boleto para o pedido #{}: {}", pedido.getNumero(), e.getMessage());
         }
     }
 
@@ -385,7 +385,7 @@ public class EmailService {
     public void enviarEmailTodosBoletos(Pedido pedido, java.util.List<com.sara.api.model.Pagamento> boletos) {
         if (boletos == null || boletos.isEmpty()) return;
         
-        log.info("Iniciando envio de e-mail consolidado de {} boletos para o pedido #{}", boletos.size(), pedido.getId());
+        log.info("Iniciando envio de e-mail consolidado de {} boletos para o pedido #{}", boletos.size(), pedido.getNumero());
 
         Configuracao config = configuracaoRepository.findAll().stream().findFirst().orElse(null);
         if (config == null || !Boolean.TRUE.equals(config.getEmailAtivo())) {
@@ -398,7 +398,7 @@ public class EmailService {
             MimeMessage message = mailSender.createMimeMessage();
             MimeMessageHelper helper = new MimeMessageHelper(message, true, "UTF-8");
 
-            helper.setSubject(String.format("Boletos de Pagamento Gerados - Pedido #%d", pedido.getId()));
+            helper.setSubject(String.format("Boletos de Pagamento Gerados - Pedido #%s", pedido.getNumero()));
             helper.setFrom(config.getMailUsername());
             helper.setTo(pedido.getUsuario().getEmail());
 
@@ -406,7 +406,7 @@ public class EmailService {
             sb.append("<div style='font-family: Arial, sans-serif; color: #333; line-height: 1.6;'>");
             sb.append("<h1 style='color: #004085;'>Seus boletos estão prontos!</h1>");
             sb.append("<p>Olá, <strong>").append(pedido.getUsuario().getNome()).append("</strong>.</p>");
-            sb.append("<p>Informamos que os boletos referentes às parcelas do seu pedido <strong>#").append(pedido.getId()).append("</strong> foram gerados com sucesso.</p>");
+            sb.append("<p>Informamos que os boletos referentes às parcelas do seu pedido <strong>#").append(pedido.getNumero()).append("</strong> foram gerados com sucesso.</p>");
             
             sb.append("<p>Abaixo estão os dados para pagamento de cada parcela:</p>");
 
@@ -444,14 +444,14 @@ public class EmailService {
             if (config.getEmailsNotificacao() != null && !config.getEmailsNotificacao().isEmpty()) {
                 MimeMessage adminMsg = mailSender.createMimeMessage();
                 MimeMessageHelper adminHelper = new MimeMessageHelper(adminMsg, true, "UTF-8");
-                adminHelper.setSubject(String.format("ALERTA: Boletos Gerados em Lote - Pedido #%d", pedido.getId()));
+                adminHelper.setSubject(String.format("ALERTA: Boletos Gerados em Lote - Pedido #%s", pedido.getNumero()));
                 adminHelper.setFrom(config.getMailUsername());
                 adminHelper.setTo(config.getEmailsNotificacao().split(","));
 
                 StringBuilder adminSb = new StringBuilder();
                 adminSb.append("<div style='font-family: Arial, sans-serif; color: #333;'>");
                 adminSb.append("<h2 style='color: #004085;'>Boletos Emitidos via Mercado Pago (Lote)</h2>");
-                adminSb.append("<p><strong>Pedido:</strong> #").append(pedido.getId()).append("</p>");
+                adminSb.append("<p><strong>Pedido:</strong> #").append(pedido.getNumero()).append("</p>");
                 adminSb.append("<p><strong>Cliente:</strong> ").append(pedido.getUsuario().getNome()).append("</p>");
                 adminSb.append("<p><strong>Total de Boletos:</strong> ").append(boletos.size()).append("</p>");
                 adminSb.append("<p>Os boletos foram enviados automaticamente ao cliente em um e-mail consolidado.</p>");
@@ -461,10 +461,10 @@ public class EmailService {
                 mailSender.send(adminMsg);
             }
 
-            log.info("E-mails de boletos em lote enviados com sucesso para o pedido #{}", pedido.getId());
+            log.info("E-mails de boletos em lote enviados com sucesso para o pedido #{}", pedido.getNumero());
 
         } catch (Exception e) {
-            log.error("Erro ao enviar e-mails de boletos em lote para o pedido #{}: {}", pedido.getId(), e.getMessage());
+            log.error("Erro ao enviar e-mails de boletos em lote para o pedido #{}: {}", pedido.getNumero(), e.getMessage());
         }
     }
 
@@ -472,7 +472,7 @@ public class EmailService {
     @Retryable(value = Exception.class, maxAttempts = 3, backoff = @Backoff(delay = 5000))
     public void enviarEmailBoletoGerado(com.sara.api.model.Pagamento pagamento) {
         Pedido pedido = pagamento.getPedido();
-        log.info("Iniciando envio de e-mails de novo boleto para o pedido #{}", pedido.getId());
+        log.info("Iniciando envio de e-mails de novo boleto para o pedido #{}", pedido.getNumero());
 
         Configuracao config = configuracaoRepository.findAll().stream().findFirst().orElse(null);
         if (config == null || !Boolean.TRUE.equals(config.getEmailAtivo())) {
@@ -486,7 +486,7 @@ public class EmailService {
             // 1. E-mail para o Cliente
             MimeMessage clientMsg = mailSender.createMimeMessage();
             MimeMessageHelper clientHelper = new MimeMessageHelper(clientMsg, true, "UTF-8");
-            clientHelper.setSubject(String.format("Novo Boleto Disponível - Pedido #%d", pedido.getId()));
+            clientHelper.setSubject(String.format("Novo Boleto Disponível - Pedido #%s", pedido.getNumero()));
             clientHelper.setFrom(config.getMailUsername());
             clientHelper.setTo(pedido.getUsuario().getEmail());
 
@@ -494,7 +494,7 @@ public class EmailService {
             clientSb.append("<div style='font-family: Arial, sans-serif; color: #333; line-height: 1.6;'>");
             clientSb.append("<h1 style='color: #004085;'>Seu boleto está pronto para pagamento!</h1>");
             clientSb.append("<p>Olá, <strong>").append(pedido.getUsuario().getNome()).append("</strong>.</p>");
-            clientSb.append("<p>Informamos que o boleto referente a uma parcela do seu pedido <strong>#").append(pedido.getId()).append("</strong> foi gerado com sucesso.</p>");
+            clientSb.append("<p>Informamos que o boleto referente a uma parcela do seu pedido <strong>#").append(pedido.getNumero()).append("</strong> foi gerado com sucesso.</p>");
             
             clientSb.append("<div style='background: #e7f3ff; border: 1px solid #b8daff; padding: 15px; border-radius: 8px; margin: 20px 0;'>");
             clientSb.append("<p style='margin: 0;'><strong>Valor:</strong> R$ ").append(String.format("%.2f", pagamento.getValor().doubleValue()).replace(".", ",")).append("</p>");
@@ -521,14 +521,14 @@ public class EmailService {
             if (config.getEmailsNotificacao() != null && !config.getEmailsNotificacao().isEmpty()) {
                 MimeMessage adminMsg = mailSender.createMimeMessage();
                 MimeMessageHelper adminHelper = new MimeMessageHelper(adminMsg, true, "UTF-8");
-                adminHelper.setSubject(String.format("ALERTA: Novo Boleto Gerado - Pedido #%d", pedido.getId()));
+                adminHelper.setSubject(String.format("ALERTA: Novo Boleto Gerado - Pedido #%s", pedido.getNumero()));
                 adminHelper.setFrom(config.getMailUsername());
                 adminHelper.setTo(config.getEmailsNotificacao().split(","));
 
                 StringBuilder adminSb = new StringBuilder();
                 adminSb.append("<div style='font-family: Arial, sans-serif; color: #333;'>");
                 adminSb.append("<h2 style='color: #004085;'>Novo Boleto Emitido via Mercado Pago</h2>");
-                adminSb.append("<p><strong>Pedido:</strong> #").append(pedido.getId()).append("</p>");
+                adminSb.append("<p><strong>Pedido:</strong> #").append(pedido.getNumero()).append("</p>");
                 adminSb.append("<p><strong>Cliente:</strong> ").append(pedido.getUsuario().getNome()).append("</p>");
                 adminSb.append("<p><strong>Valor:</strong> R$ ").append(String.format("%.2f", pagamento.getValor().doubleValue()).replace(".", ",")).append("</p>");
                 adminSb.append("<p>O boleto foi enviado automaticamente ao cliente.</p>");
@@ -538,17 +538,17 @@ public class EmailService {
                 mailSender.send(adminMsg);
             }
 
-            log.info("E-mails de novo boleto enviados com sucesso para o pedido #{}", pedido.getId());
+            log.info("E-mails de novo boleto enviados com sucesso para o pedido #{}", pedido.getNumero());
 
         } catch (Exception e) {
-            log.error("Erro ao enviar e-mails de novo boleto para o pedido #{}: {}", pedido.getId(), e.getMessage());
+            log.error("Erro ao enviar e-mails de novo boleto para o pedido #{}: {}", pedido.getNumero(), e.getMessage());
         }
     }
 
     @Async
     @Retryable(value = Exception.class, maxAttempts = 3, backoff = @Backoff(delay = 5000))
     public void enviarEmailPagamentoConfirmado(Pedido pedido, com.sara.api.model.Pagamento pagamento) {
-        log.info("Iniciando envio de e-mails de confirmação de pagamento para o pedido #{}", pedido.getId());
+        log.info("Iniciando envio de e-mails de confirmação de pagamento para o pedido #{}", pedido.getNumero());
 
         Configuracao config = configuracaoRepository.findAll().stream().findFirst().orElse(null);
         if (config == null || !Boolean.TRUE.equals(config.getEmailAtivo())) {
@@ -564,7 +564,7 @@ public class EmailService {
             // 1. E-mail para o Cliente
             MimeMessage clientMsg = mailSender.createMimeMessage();
             MimeMessageHelper clientHelper = new MimeMessageHelper(clientMsg, true, "UTF-8");
-            clientHelper.setSubject(String.format("Pagamento Confirmado - Pedido #%d", pedido.getId()));
+            clientHelper.setSubject(String.format("Pagamento Confirmado - Pedido #%s", pedido.getNumero()));
             clientHelper.setFrom(config.getMailUsername());
             clientHelper.setTo(pedido.getUsuario().getEmail());
 
@@ -572,7 +572,7 @@ public class EmailService {
             clientSb.append("<div style='font-family: Arial, sans-serif; color: #333; line-height: 1.6;'>");
             clientSb.append("<h1 style='color: #28a745;'>Confirmamos seu pagamento!</h1>");
             clientSb.append("<p>Olá, <strong>").append(pedido.getUsuario().getNome()).append("</strong>.</p>");
-            clientSb.append("<p>Recebemos o pagamento referente a uma parcela do seu pedido <strong>#").append(pedido.getId()).append("</strong>.</p>");
+            clientSb.append("<p>Recebemos o pagamento referente a uma parcela do seu pedido <strong>#").append(pedido.getNumero()).append("</strong>.</p>");
             clientSb.append("<p><strong>Valor Pago:</strong> R$ ").append(String.format("%.2f", pagamento.getValor().doubleValue()).replace(".", ",")).append("</p>");
             clientSb.append("<p><strong>Data de Confirmação:</strong> ").append(dataConfirmacao).append("</p>");
             clientSb.append("<p>Seu pedido seguirá agora para as próximas etapas de processamento. Acompanhe o status pelo nosso sistema.</p>");
@@ -586,14 +586,14 @@ public class EmailService {
             if (config.getEmailsNotificacao() != null && !config.getEmailsNotificacao().isEmpty()) {
                 MimeMessage adminMsg = mailSender.createMimeMessage();
                 MimeMessageHelper adminHelper = new MimeMessageHelper(adminMsg, true, "UTF-8");
-                adminHelper.setSubject(String.format("ALERTA: Pagamento Recebido - Pedido #%d", pedido.getId()));
+                adminHelper.setSubject(String.format("ALERTA: Pagamento Recebido - Pedido #%s", pedido.getNumero()));
                 adminHelper.setFrom(config.getMailUsername());
                 adminHelper.setTo(config.getEmailsNotificacao().split(","));
 
                 StringBuilder adminSb = new StringBuilder();
                 adminSb.append("<div style='font-family: Arial, sans-serif; color: #333;'>");
                 adminSb.append("<h2 style='color: #28a745;'>Novo Pagamento Recebido</h2>");
-                adminSb.append("<p><strong>Pedido:</strong> #").append(pedido.getId()).append("</p>");
+                adminSb.append("<p><strong>Pedido:</strong> #").append(pedido.getNumero()).append("</p>");
                 adminSb.append("<p><strong>Cliente:</strong> ").append(pedido.getUsuario().getNome()).append("</p>");
                 adminSb.append("<p><strong>Valor:</strong> R$ ").append(String.format("%.2f", pagamento.getValor().doubleValue()).replace(".", ",")).append("</p>");
                 adminSb.append("<p><strong>Data Sistema:</strong> ").append(dataConfirmacao).append("</p>");
@@ -604,17 +604,17 @@ public class EmailService {
                 mailSender.send(adminMsg);
             }
 
-            log.info("E-mails de confirmação enviados para o pedido #{}", pedido.getId());
+            log.info("E-mails de confirmação enviados para o pedido #{}", pedido.getNumero());
 
         } catch (Exception e) {
-            log.error("Erro ao enviar e-mails de confirmação para o pedido #{}: {}", pedido.getId(), e.getMessage());
+            log.error("Erro ao enviar e-mails de confirmação para o pedido #{}: {}", pedido.getNumero(), e.getMessage());
         }
     }
 
     @Async
     @Retryable(value = Exception.class, maxAttempts = 3, backoff = @Backoff(delay = 5000))
     public void enviarEmailPagamentoOnlineHabilitado(Pedido pedido) {
-        log.info("Iniciando envio de e-mail de pagamento online habilitado para o pedido #{}", pedido.getId());
+        log.info("Iniciando envio de e-mail de pagamento online habilitado para o pedido #{}", pedido.getNumero());
 
         Configuracao config = configuracaoRepository.findAll().stream().findFirst().orElse(null);
         if (config == null || !Boolean.TRUE.equals(config.getEmailAtivo())) {
@@ -627,7 +627,7 @@ public class EmailService {
             MimeMessage message = mailSender.createMimeMessage();
             MimeMessageHelper helper = new MimeMessageHelper(message, true, "UTF-8");
 
-            String subject = String.format("Pagamento Online Liberado - Pedido #%d", pedido.getId());
+            String subject = String.format("Pagamento Online Liberado - Pedido #%s", pedido.getNumero());
             helper.setSubject(subject);
             helper.setFrom(config.getMailUsername());
             helper.setTo(pedido.getUsuario().getEmail());
@@ -636,7 +636,7 @@ public class EmailService {
             sb.append("<div style='font-family: Arial, sans-serif; color: #333; line-height: 1.6;'>");
             sb.append("<h1 style='color: #28a745;'>Pagamento Online Liberado!</h1>");
             sb.append("<p>Olá, <strong>").append(pedido.getUsuario().getNome()).append("</strong>.</p>");
-            sb.append("<p>Informamos que o pagamento online (PIX ou Boleto) foi <strong>habilitado manualmente</strong> para o seu pedido <strong>#").append(pedido.getId()).append("</strong>.</p>");
+            sb.append("<p>Informamos que o pagamento online (PIX ou Boleto) foi <strong>habilitado manualmente</strong> para o seu pedido <strong>#").append(pedido.getNumero()).append("</strong>.</p>");
             
             sb.append("<p>Agora você já pode realizar o pagamento das parcelas diretamente pelo nosso sistema.</p>");
             
@@ -645,7 +645,7 @@ public class EmailService {
             sb.append("<ol>");
             sb.append("<li>Acesse o sistema com seu login.</li>");
             sb.append("<li>Vá em <strong>'Meus Pedidos'</strong>.</li>");
-            sb.append("<li>Localize o pedido #").append(pedido.getId()).append(".</li>");
+            sb.append("<li>Localize o pedido #").append(pedido.getNumero()).append(".</li>");
             sb.append("<li>Clique nos ícones de <strong>QR Code (PIX)</strong> ou <strong>PDF (Boleto)</strong> disponíveis nas parcelas.</li>");
             sb.append("</ol>");
             sb.append("</div>");
@@ -658,10 +658,10 @@ public class EmailService {
 
             helper.setText(sb.toString(), true);
             mailSender.send(message);
-            log.info("E-mail de pagamento online habilitado enviado para o cliente do pedido #{}", pedido.getId());
+            log.info("E-mail de pagamento online habilitado enviado para o cliente do pedido #{}", pedido.getNumero());
 
         } catch (Exception e) {
-            log.error("Erro ao enviar e-mail de pagamento online habilitado para o pedido #{}: {}", pedido.getId(), e.getMessage());
+            log.error("Erro ao enviar e-mail de pagamento online habilitado para o pedido #{}: {}", pedido.getNumero(), e.getMessage());
         }
     }
 
@@ -690,7 +690,7 @@ public class EmailService {
 
         StringBuilder sb = new StringBuilder();
         sb.append("<h1 style='color: red;'>Pedido Cancelado!</h1>");
-        sb.append("<p><strong>Número do Pedido:</strong> #").append(pedido.getId()).append("</p>");
+        sb.append("<p><strong>Número do Pedido:</strong> #").append(pedido.getNumero()).append("</p>");
         sb.append("<p><strong>Cliente:</strong> ").append(pedido.getUsuario().getNome()).append("</p>");
         sb.append("<p><strong>Data do Pedido:</strong> ").append(dataOriginal).append("</p>");
 
@@ -728,7 +728,7 @@ public class EmailService {
         sb.append("<div style='font-family: Arial, sans-serif; color: #333;'>");
         sb.append("<h1 style='color: #c5a059;'>Atualização no Seu Pedido!</h1>");
         sb.append("<p>Olá, <strong>").append(pedido.getUsuario().getNome()).append("</strong>.</p>");
-        sb.append("<p>Informamos que houveram atualizações no seu pedido <strong>#").append(pedido.getId()).append("</strong>.</p>");
+        sb.append("<p>Informamos que houveram atualizações no seu pedido <strong>#").append(pedido.getNumero()).append("</strong>.</p>");
         sb.append("<p><strong>Data da Atualização:</strong> ").append(dataFormatada).append("</p>");
         sb.append("<p><strong>Observação atual:</strong> ")
                 .append(pedido.getObservacao() != null ? pedido.getObservacao() : "-").append("</p>");
@@ -763,7 +763,7 @@ public class EmailService {
 
         StringBuilder sb = new StringBuilder();
         sb.append("<h1>Novo Pedido Recebido!</h1>");
-        sb.append("<p><strong>Número do Pedido:</strong> #").append(pedido.getId()).append("</p>");
+        sb.append("<p><strong>Número do Pedido:</strong> #").append(pedido.getNumero()).append("</p>");
         sb.append("<p><strong>Cliente:</strong> ").append(pedido.getUsuario().getNome()).append("</p>");
         sb.append("<p><strong>Data:</strong> ").append(dataFormatada).append("</p>");
         sb.append("<p><strong>Observação:</strong> ")
@@ -860,7 +860,7 @@ public class EmailService {
         sb.append("<h1 style='color: #28a745;'>Pedido Confirmado!</h1>");
         sb.append("<p>Olá, <strong>").append(pedido.getUsuario().getNome()).append("</strong>.</p>");
         sb.append("<p>Seu pedido foi confirmado pelo administrador e já está seguindo para a próxima etapa.</p>");
-        sb.append("<p><strong>Número do Pedido:</strong> #").append(pedido.getId()).append("</p>");
+        sb.append("<p><strong>Número do Pedido:</strong> #").append(pedido.getNumero()).append("</p>");
         sb.append("<p><strong>Data Original:</strong> ").append(dataFormatada).append("</p>");
         
         if (pedido.getFormaPagamento() != null) {

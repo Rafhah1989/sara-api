@@ -57,8 +57,23 @@ public class UsuarioService {
     @Transactional
     public UsuarioResponseDTO criar(UsuarioRequestDTO request) {
         usuarioValidator.validar(request, true);
+
+        if (request.getCodigo() != null && !request.getCodigo().trim().isEmpty()) {
+            if (usuarioRepository.existsByCodigo(request.getCodigo())) {
+                throw new ValidationException("O código informado já está em uso", HttpStatus.BAD_REQUEST);
+            }
+        }
+
         Usuario usuario = new Usuario();
         updateUsuarioFromDTO(request, usuario);
+        
+        // Se não informado, gera um código temporário para satisfazer o NOT NULL
+        // O código real será gerado após o save para obter o ID
+        boolean gerarCodigoAutomatico = false;
+        if (usuario.getCodigo() == null || usuario.getCodigo().trim().isEmpty()) {
+            usuario.setCodigo("T" + java.util.UUID.randomUUID().toString().substring(0, 3)); 
+            gerarCodigoAutomatico = true;
+        }
         
         boolean enviarEmailCertificacao = false;
         String senhaAleatoria = null;
@@ -75,12 +90,32 @@ public class UsuarioService {
         
         usuario.setAtivo(true);
         Usuario saved = usuarioRepository.save(usuario);
+
+        if (gerarCodigoAutomatico) {
+            saved.setCodigo(gerarCodigoPadrao(saved.getId()));
+            // Verifica se o código gerado já existe em OUTRO usuário
+            if (usuarioRepository.existsByCodigoAndIdNot(saved.getCodigo(), saved.getId())) {
+                throw new ValidationException("Erro ao gerar código automático: Código " + saved.getCodigo() + " já existe.", HttpStatus.CONFLICT);
+            }
+            saved = usuarioRepository.save(saved);
+        }
         
         if (enviarEmailCertificacao) {
             enviarEmailConvite(saved, senhaAleatoria);
         }
         
         return toDTO(saved);
+    }
+
+    private String gerarCodigoPadrao(Long id) {
+        return "11" + String.format("%02d", id % 100);
+    }
+
+    public boolean verificarCodigoDisponivel(String codigo, Long idAtual) {
+        if (idAtual != null) {
+            return !usuarioRepository.existsByCodigoAndIdNot(codigo, idAtual);
+        }
+        return !usuarioRepository.existsByCodigo(codigo);
     }
 
     private String gerarSenhaAleatoria() {
@@ -116,6 +151,11 @@ public class UsuarioService {
 
     public UsuarioResponseDTO alterar(Long id, UsuarioRequestDTO request) {
         usuarioValidator.validar(request, false);
+        
+        if (usuarioRepository.existsByCodigoAndIdNot(request.getCodigo(), id)) {
+            throw new ValidationException("O código informado já está em uso por outro usuário", HttpStatus.BAD_REQUEST);
+        }
+
         return usuarioRepository.findById(id).map(usuario -> {
             if (usuario.getRole() == Role.ADMIN && request.getRole() != Role.ADMIN && usuario.getAtivo() && usuarioRepository.countByRoleAndAtivoTrue(Role.ADMIN) <= 1) {
                 throw new ValidationException("Não é possível remover o perfil de ADMIN. O sistema deve possuir pelo menos um ADMIN ativo.", HttpStatus.BAD_REQUEST);
@@ -191,7 +231,7 @@ public class UsuarioService {
     }
 
     public List<UsuarioResponseDTO> buscarPorNome(String nome) {
-        return usuarioRepository.findByNomeContainingIgnoreCase(nome).stream()
+        return usuarioRepository.findByNomeContainingIgnoreCaseOrCodigoContainingIgnoreCase(nome, nome).stream()
                 .map(this::toDTO)
                 .collect(Collectors.toList());
     }

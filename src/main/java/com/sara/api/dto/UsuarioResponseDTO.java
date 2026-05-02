@@ -13,6 +13,9 @@ public class UsuarioResponseDTO {
     @Schema(description = "Nome completo do usuário", example = "João da Silva")
     private String nome;
 
+    @Schema(description = "Código de identificação do usuário", example = "1101")
+    private String codigo;
+
     @Schema(description = "CEP formatado", example = "01001-000")
     private String cep;
 

@@ -16,6 +16,21 @@ public class UsuarioValidator {
         validarCidade(request.getCidade());
         validarUf(request.getUf());
         validarBairro(request.getBairro());
+        validarCodigo(request.getCodigo(), isCriacao);
+    }
+
+    private void validarCodigo(String codigo, boolean isCriacao) {
+        if (!isCriacao) {
+            if (codigo == null || codigo.trim().isEmpty()) {
+                throw new ValidationException("O campo código é obrigatório");
+            }
+        }
+        
+        if (codigo != null && !codigo.trim().isEmpty()) {
+            if (!codigo.matches("\\d{4}")) {
+                throw new ValidationException("O código deve ter exatos 4 dígitos numéricos");
+            }
+        }
     }
 
     private void validarBairro(String bairro) {

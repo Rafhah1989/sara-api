@@ -16,6 +16,14 @@ import java.util.List;
 @Repository
 public interface PedidoRepository extends JpaRepository<Pedido, Long>, JpaSpecificationExecutor<Pedido> {
     
+    java.util.Optional<Pedido> findByNumero(String numero);
+
+    @Query("SELECT MAX(p.id) FROM Pedido p WHERE p.usuario.id = :usuarioId")
+    Long findMaxIdByUsuario(@Param("usuarioId") Long usuarioId);
+
+    @Query("SELECT p.numero FROM Pedido p WHERE p.usuario.id = :usuarioId")
+    List<String> findNumerosByUsuario(@Param("usuarioId") Long usuarioId);
+    
     @Override
     @EntityGraph(attributePaths = {"usuario", "formaPagamento"})
     Page<Pedido> findAll(Specification<Pedido> spec, Pageable pageable);

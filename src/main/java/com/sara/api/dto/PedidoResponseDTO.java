@@ -14,11 +14,24 @@ public class PedidoResponseDTO {
     @Schema(description = "ID do pedido", example = "1")
     private Long id;
 
+    @Schema(description = "Número formatado do pedido", example = "1101001")
+    @com.fasterxml.jackson.annotation.JsonProperty("numero")
+    private String numero;
+
+    public String getNumero() {
+        return numero;
+    }
+
+    public void setNumero(String numero) {
+        this.numero = numero;
+    }
+
     @Schema(description = "ID do usuário do pedido", example = "1")
     private Long usuarioId;
 
     @Schema(description = "Nome do usuário (opcional para exibição)", example = "João da Silva")
     private String usuarioNome;
+
 
     @Schema(description = "ID da Forma de Pagamento", example = "1")
     private Long formaPagamentoId;
