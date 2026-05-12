@@ -120,6 +120,10 @@ public class PedidoPdfService {
                 usuario.getCidade(),
                 usuario.getUf(),
                 usuario.getCep()), normalFont));
+        
+        document.add(new Paragraph("CPF/CNPJ: " + formatCpfCnpj(usuario.getCpfCnpj()), normalFont));
+        document.add(new Paragraph("E-mail: " + usuario.getEmail(), normalFont));
+
         document.add(new Paragraph("\n"));
     }
 
@@ -299,5 +303,16 @@ public class PedidoPdfService {
         } catch (Exception e) {
             // Se falhar ao adicionar marca d'água, continua gerando o PDF normalmente
         }
+    }
+
+    private String formatCpfCnpj(String cpfCnpj) {
+        if (cpfCnpj == null) return "";
+        String clean = cpfCnpj.replaceAll("\\D", "");
+        if (clean.length() == 11) {
+            return clean.replaceAll("(\\d{3})(\\d{3})(\\d{3})(\\d{2})", "$1.$2.$3-$4");
+        } else if (clean.length() == 14) {
+            return clean.replaceAll("(\\d{2})(\\d{3})(\\d{3})(\\d{4})(\\d{2})", "$1.$2.$3/$4-$5");
+        }
+        return cpfCnpj;
     }
 }

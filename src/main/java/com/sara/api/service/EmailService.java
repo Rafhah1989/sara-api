@@ -73,6 +73,48 @@ public class EmailService {
 
     @Async
     @Retryable(value = Exception.class, maxAttempts = 3, backoff = @Backoff(delay = 5000))
+    public void enviarEmailConfirmacaoCliente(Pedido pedido) {
+        log.info("Enviando e-mail de confirmação para o cliente do pedido #{}", pedido.getNumero());
+
+        Configuracao config = configuracaoRepository.findAll().stream().findFirst().orElse(null);
+        if (config == null || !Boolean.TRUE.equals(config.getEmailAtivo())) {
+            log.info("Envio de e-mail desativado.");
+            return;
+        }
+
+        try {
+            JavaMailSenderImpl mailSender = createMailSender(config);
+            MimeMessage message = mailSender.createMimeMessage();
+            MimeMessageHelper helper = new MimeMessageHelper(message, true, "UTF-8");
+
+            String subject = String.format("Pedido %s realizado", pedido.getNumero());
+            helper.setSubject(subject);
+            helper.setFrom(config.getMailUsername());
+            helper.setTo(pedido.getUsuario().getEmail());
+
+            StringBuilder sb = new StringBuilder();
+            sb.append("<div style='font-family: Arial, sans-serif; color: #333; line-height: 1.6;'>");
+            sb.append("<h1 style='color: #c5a059;'>Obrigado</h1>");
+            sb.append("<p>Olá, <strong>").append(pedido.getUsuario().getNome()).append("</strong>.</p>");
+            sb.append("<p>Informamos que o seu pedido <strong>#").append(pedido.getNumero()).append("</strong> foi gerado com sucesso.</p>");
+            sb.append("<p>Você pode acompanhar o status do seu pedido acessando a opção <strong>Pedidos</strong> em nosso sistema.</p>");
+            sb.append("<p>Havendo qualquer dúvida, estamos à disposição para ajudá-lo através dos nossos canais de atendimento.</p>");
+            sb.append("<br/>");
+            sb.append("<p>Atenciosamente,</p>");
+            sb.append("<p><strong>Equipe Sara Imagens</strong></p>");
+            sb.append("</div>");
+
+            helper.setText(sb.toString(), true);
+            mailSender.send(message);
+            log.info("E-mail de confirmação enviado para o cliente do pedido #{}", pedido.getNumero());
+
+        } catch (Exception e) {
+            log.error("Erro ao enviar e-mail de confirmação para o pedido #{}: {}", pedido.getNumero(), e.getMessage());
+        }
+    }
+
+    @Async
+    @Retryable(value = Exception.class, maxAttempts = 3, backoff = @Backoff(delay = 5000))
     public void enviarEmailPedidoCancelado(Pedido pedido, com.sara.api.model.Usuario responsavel, String motivo) {
         log.info("Iniciando tentativa de envio de e-mail de cancelamento para o pedido #{}", pedido.getId());
 

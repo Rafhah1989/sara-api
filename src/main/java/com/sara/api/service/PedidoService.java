@@ -273,6 +273,7 @@ public class PedidoService {
 
         // Dispara e-mail assíncrono para o novo pedido
         emailService.enviarEmailNovoPedido(savedCompleto);
+        emailService.enviarEmailConfirmacaoCliente(savedCompleto);
         
         PedidoResponseDTO response = convertToResponseDTO(savedCompleto);
         // Garante que o número seja enviado, priorizando o valor da entidade persistida
