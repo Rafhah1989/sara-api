@@ -100,10 +100,16 @@ public class ProdutoService {
     }
 
     public List<ProdutoMiniDTO> buscarPorNomeMini(String nome) {
+        if (nome != null) {
+            nome = nome.trim();
+        }
         return produtoRepository.findByNomeMini(nome);
     }
 
     public List<Produto> buscarPorNome(String nome) {
+        if (nome != null) {
+            nome = nome.trim();
+        }
         return produtoRepository.findByNomeAccentInsensitive(nome);
     }
 
@@ -112,6 +118,9 @@ public class ProdutoService {
     }
 
     public Optional<Produto> buscarPorCodigo(String codigo) {
+        if (codigo != null) {
+            codigo = codigo.trim();
+        }
         return produtoRepository.findByCodigoAndAtivoTrue(codigo);
     }
 
@@ -171,13 +180,14 @@ public class ProdutoService {
     }
 
     public Page<ProdutoResumoDTO> buscarParaLoja(String nome, List<Integer> tamanhos, Double precoMin, Double precoMax, Pageable pageable) {
+        final String nomeSanitizado = nome != null ? nome.trim() : null;
         Specification<Produto> spec = (root, query, cb) -> {
             List<Predicate> predicates = new ArrayList<>();
             predicates.add(cb.isTrue(root.get("ativo")));
             predicates.add(cb.isNotNull(root.get("preco")));
 
-            if (nome != null && !nome.trim().isEmpty()) {
-                String termLower = nome.toLowerCase();
+            if (nomeSanitizado != null && !nomeSanitizado.isEmpty()) {
+                String termLower = nomeSanitizado.toLowerCase();
                 String unaccentedTerm = "%" + termLower + "%";
                 
                 Predicate matchNome = cb.like(

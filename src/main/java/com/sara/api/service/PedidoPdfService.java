@@ -128,9 +128,17 @@ public class PedidoPdfService {
     }
 
     private void addProductTable(Document document, Pedido pedido) {
+        // Tabela externa (container) de 2 colunas para colocar a tabela principal e a tabela de resumo lado a lado
+        PdfPTable containerTable = new PdfPTable(2);
+        containerTable.setWidthPercentage(100);
+        try {
+            // Ocupamos 72.0% para a tabela de produtos e 28.0% para a de categorias
+            containerTable.setWidths(new float[] { 72.0f, 28.0f });
+        } catch (Exception e) {
+        }
+
         PdfPTable table = new PdfPTable(6);
-        table.setWidthPercentage(65.5f);
-        table.setHorizontalAlignment(Element.ALIGN_LEFT);
+        table.setWidthPercentage(100);
         try {
             // New widths: Cód(0.8), Qtd(0.5), Produto(2.2), T(0.4), Unt(1), Total(1)
             table.setWidths(new float[] { 0.8f, 0.5f, 2.2f, 0.4f, 1f, 1f });
@@ -172,8 +180,135 @@ public class PedidoPdfService {
             addCell(table, formatCurrencyWithSpaces(bTotal, maxIntPartsTotal), normalFont, null, Element.ALIGN_RIGHT);
         }
 
-        document.add(table);
+        // Célula para a tabela principal
+        PdfPCell leftCell = new PdfPCell();
+        leftCell.setBorder(Rectangle.NO_BORDER);
+        leftCell.setPaddingRight(10f); // Afasta a tabela esquerda da direita
+        leftCell.setVerticalAlignment(Element.ALIGN_TOP);
+        leftCell.addElement(table);
+        containerTable.addCell(leftCell);
+
+        // Tabela de resumo por categoria (coluna da direita)
+        PdfPTable summaryTable = createCategorySummaryTable(pedido);
+        PdfPTable summaryUnitTable = createCategoryUnitValueTable(pedido);
+
+        // Célula para a tabela de resumo
+        PdfPCell rightCell = new PdfPCell();
+        rightCell.setBorder(Rectangle.NO_BORDER);
+        rightCell.setPaddingLeft(10f); // Afasta a tabela direita da esquerda
+        rightCell.setVerticalAlignment(Element.ALIGN_TOP);
+        rightCell.addElement(summaryTable);
+        rightCell.addElement(new Paragraph("\n")); // Espaçamento vertical entre tabelas
+        rightCell.addElement(summaryUnitTable);
+        containerTable.addCell(rightCell);
+
+        document.add(containerTable);
         document.add(new Paragraph("\n"));
+    }
+
+    private PdfPTable createCategoryUnitValueTable(Pedido pedido) {
+        PdfPTable unitTable = new PdfPTable(2);
+        unitTable.setWidthPercentage(100);
+        try {
+            // Cat. (0.5f) e Vl. Un. (1.625f) para alinhar com a tabela superior (0.5f + 1.125f)
+            unitTable.setWidths(new float[] { 0.5f, 1.625f });
+        } catch (Exception e) {
+        }
+
+        // Título principal do cabeçalho
+        PdfPCell titleCell = new PdfPCell(new Phrase("Valor Un. Categoria", boldFont));
+        titleCell.setColspan(2);
+        titleCell.setPadding(5);
+        titleCell.setHorizontalAlignment(Element.ALIGN_CENTER);
+        titleCell.setBackgroundColor(Color.LIGHT_GRAY);
+        unitTable.addCell(titleCell);
+
+        // Cabeçalhos de coluna
+        addCell(unitTable, "Cat.", boldFont, Color.LIGHT_GRAY, Element.ALIGN_LEFT);
+        addCell(unitTable, "Vl. Un.", boldFont, Color.LIGHT_GRAY, Element.ALIGN_RIGHT);
+
+        java.util.Map<String, CategorySummary> map = new java.util.TreeMap<>();
+        for (PedidoProduto item : pedido.getProdutos()) {
+            String codigo = item.getProduto().getCodigo();
+            String categoria = "";
+            if (codigo != null && codigo.length() >= 3) {
+                categoria = codigo.substring(0, 3);
+            } else if (codigo != null) {
+                categoria = codigo;
+            } else {
+                categoria = "N/A";
+            }
+
+            CategorySummary summary = map.computeIfAbsent(categoria, k -> new CategorySummary());
+            summary.quantidade = summary.quantidade.add(item.getQuantidade());
+            summary.valorTotal = summary.valorTotal.add(item.getValor().multiply(item.getQuantidade()));
+        }
+
+        for (java.util.Map.Entry<String, CategorySummary> entry : map.entrySet()) {
+            addCell(unitTable, entry.getKey(), normalFont, null, Element.ALIGN_LEFT);
+            
+            BigDecimal media = BigDecimal.ZERO;
+            if (entry.getValue().quantidade.compareTo(BigDecimal.ZERO) > 0) {
+                media = entry.getValue().valorTotal.divide(entry.getValue().quantidade, 2, java.math.RoundingMode.HALF_UP);
+            }
+            
+            addCell(unitTable, currencyFormatter.format(media), normalFont, null, Element.ALIGN_RIGHT);
+        }
+
+        return unitTable;
+    }
+
+    private PdfPTable createCategorySummaryTable(Pedido pedido) {
+        PdfPTable summaryTable = new PdfPTable(3);
+        summaryTable.setWidthPercentage(100);
+        try {
+            summaryTable.setWidths(new float[] { 0.5f, 0.5f, 1.125f });
+        } catch (Exception e) {
+        }
+
+        // Título principal do cabeçalho
+        PdfPCell titleCell = new PdfPCell(new Phrase("Itens por Categoria", boldFont));
+        titleCell.setColspan(3);
+        titleCell.setPadding(5);
+        titleCell.setHorizontalAlignment(Element.ALIGN_CENTER);
+        titleCell.setBackgroundColor(Color.LIGHT_GRAY);
+        summaryTable.addCell(titleCell);
+
+        // Cabeçalhos de coluna
+        addCell(summaryTable, "Cat.", boldFont, Color.LIGHT_GRAY, Element.ALIGN_LEFT);
+        addCell(summaryTable, "Qt", boldFont, Color.LIGHT_GRAY, Element.ALIGN_CENTER);
+        addCell(summaryTable, "Valor", boldFont, Color.LIGHT_GRAY, Element.ALIGN_RIGHT);
+
+        java.util.Map<String, CategorySummary> map = new java.util.TreeMap<>();
+        for (PedidoProduto item : pedido.getProdutos()) {
+            String codigo = item.getProduto().getCodigo();
+            String categoria = "";
+            if (codigo != null && codigo.length() >= 3) {
+                categoria = codigo.substring(0, 3);
+            } else if (codigo != null) {
+                categoria = codigo;
+            } else {
+                categoria = "N/A";
+            }
+
+            CategorySummary summary = map.computeIfAbsent(categoria, k -> new CategorySummary());
+            summary.quantidade = summary.quantidade.add(item.getQuantidade());
+            summary.valorTotal = summary.valorTotal.add(item.getValor().multiply(item.getQuantidade()));
+        }
+
+        for (java.util.Map.Entry<String, CategorySummary> entry : map.entrySet()) {
+            addCell(summaryTable, entry.getKey(), normalFont, null, Element.ALIGN_LEFT);
+            String qtStr = String.format("%02d", entry.getValue().quantidade.intValue());
+            addCell(summaryTable, qtStr, normalFont, null, Element.ALIGN_CENTER);
+            addCell(summaryTable, currencyFormatter.format(entry.getValue().valorTotal), normalFont, null, Element.ALIGN_RIGHT);
+        }
+
+        return summaryTable;
+    }
+
+    private static class CategorySummary {
+        BigDecimal quantidade = BigDecimal.ZERO;
+        BigDecimal valorTotal = BigDecimal.ZERO;
     }
 
     private int getIntegerPartLength(BigDecimal value) {

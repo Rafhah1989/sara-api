@@ -38,6 +38,7 @@ class PedidoPdfServiceTest {
         Produto p1 = new Produto();
         p1.setNome("Camiseta Branca");
         p1.setTamanho(42);
+        p1.setCodigo("181234");
         pp1.setProduto(p1);
         pp1.setQuantidade(new BigDecimal("8"));
         pp1.setValor(new BigDecimal("100.00"));
@@ -47,6 +48,7 @@ class PedidoPdfServiceTest {
         Produto p2 = new Produto();
         p2.setNome("Terço de Madeira");
         p2.setTamanho(0);
+        p2.setCodigo("170123");
         pp2.setProduto(p2);
         pp2.setQuantidade(new BigDecimal("14"));
         pp2.setValor(new BigDecimal("10.00"));
